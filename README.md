@@ -56,7 +56,7 @@ pytest
 python -m uvicorn pricing_decision.api.app:app --host 127.0.0.1 --port 8080 --reload
 ```
 
-`--reload` means the server restarts when you edit Python. Open **http://127.0.0.1:8080/** in a browser. That page *is* the product lab: you can price Maya on SKU-1234, walk each stage, run the night shift, and read the Azure / SageMaker runbooks.
+`--reload` means the server restarts when you edit Python. Open **http://127.0.0.1:8080/** in a browser. That page *is* the product lab: you can price Maya on SKU-1234, walk each stage, run the night shift, and read the Azure runbook.
 
 If you want one decision without a browser, the CLI reads a JSON file and prints the result. `--explain` shows the internal scores (that is the same leak as the internal HTTP explain route — fine on your laptop, not for the public internet).
 
@@ -73,9 +73,9 @@ The installable name is `pricing-decision-service`. The shortcut command is `pds
 
 The home page is a single HTML file, `src/pricing_decision/web/index.html`, served by FastAPI at `/`. There is no separate React build. The buttons across the top switch “pipelines.” Each pipeline has its own left-hand list of sections.
 
-**Project** is a guided tour of folders and files: where FastAPI lives, what each stage file does, what `data/` is (generated, not source). Open it when you are lost. **Science** is the five questions above, written against this codebase. **Azure** is the Canada Central production runbook (how to host the same app, not a second brain). **SageMaker** is the same night shift on AWS, step by step. **Architecture** is the full loop around the brain: catalog, coupons, holdout, monitor, kill switch, use cases you can click. **Online PDS** is the live pipeline; pick Maya and SKU-1234 and press Run on each stage to see arms, scores, and the final price. **Offline learning** is the night shift on your laptop; seed some history, then walk ingest → join → OPE → gate.
+**Project** is a guided tour of folders and files: where FastAPI lives, what each stage file does, what `data/` is (generated, not source). Open it when you are lost. **Science** is the five questions above, written against this codebase. **Azure** is the Canada Central production runbook (how to host the same app, not a second brain). **Architecture** is the full loop around the brain: catalog, coupons, holdout, monitor, kill switch, use cases you can click. **Online PDS** is the live pipeline; pick Maya and SKU-1234 and press Run on each stage to see arms, scores, and the final price. **Offline learning** is the night shift on your laptop; seed some history, then walk ingest → join → OPE → gate.
 
-The Azure, Project, Science, and SageMaker views are also plain URLs if you want them without the chrome: `/azure`, `/project`, `/science`, `/sagemaker`.
+The Azure, Project, and Science views are also plain URLs if you want them without the chrome: `/azure`, `/project`, `/science`.
 
 ---
 
@@ -113,7 +113,7 @@ If the decision log is down, buffer and **stop exploring**. Randomizing prices y
 
 ## Offline pipeline (what happens tonight)
 
-Checkout cannot wait for training. `offline/pipeline.py` is the conductor for the slow path. On a laptop the “lake” is JSONL files under `data/lake/`. The online service appends to `data/log_buffer/decisions.jsonl`. The registry is `data/registry/models.json`. In Azure those become Event Hubs, ADLS, and Azure ML. On AWS they become Kinesis or MSK, S3, and SageMaker. The Python stages stay the same.
+Checkout cannot wait for training. `offline/pipeline.py` is the conductor for the slow path. On a laptop the “lake” is JSONL files under `data/lake/`. The online service appends to `data/log_buffer/decisions.jsonl`. The registry is `data/registry/models.json`. In Azure those become Event Hubs, ADLS, and Azure ML. The Python stages stay the same.
 
 **Ingest** copies live logs (and optional seeded history) into the lake once per `decision_id`. Duplicates would pretend we had more data than we do.
 
@@ -129,7 +129,7 @@ Checkout cannot wait for training. `offline/pipeline.py` is the conductor for th
 
 **Registry** stores the artifact. **Gate** is the adult: register as Production and start a canary only if OPE, ESS, fairness, and latency pass; otherwise keep the champion. **Rollout** is shadow (log, do not serve) then 1%, 5%, 25%, 100%, with a one-command rollback if live metrics go bad.
 
-Open the Offline learning tab, seed about 80 decisions, and walk the stages in order. That is the same DAG SageMaker will run later.
+Open the Offline learning tab, seed about 80 decisions, and walk the stages in order. That is the same DAG Azure ML will run later.
 
 ---
 
@@ -165,7 +165,7 @@ The Architecture tab’s use cases (kill switch, sticky twice, budget cap, holdo
 
 Everything you maintain sits next to this README.
 
-`pyproject.toml` tells Python this is a package, which libraries to install, and how to run pytest. `Dockerfile` packages the same FastAPI process for Azure Container Apps, AWS ECS, or a SageMaker job. `configs/` is the rulebook the running process reads (change a YAML, not a function, to add a SKU or flip a pin).
+`pyproject.toml` tells Python this is a package, which libraries to install, and how to run pytest. `Dockerfile` packages the same FastAPI process for Azure Container Apps. `configs/` is the rulebook the running process reads (change a YAML, not a function, to add a SKU or flip a pin).
 
 `src/pricing_decision/` is the only Python package. `api/app.py` is FastAPI. `web/index.html` is the lab. `orchestrator.py` is the wiring of stages 0–10. `stages/` is the online pipeline. `services/` is the seam you swap for Redis, Cosmos, Event Hubs, and so on. `core/` is shared types (the request, the offer, the exceptions). `offline/` is the night shift. `cli.py` is `serve` and `decide`.
 
@@ -173,7 +173,7 @@ Everything you maintain sits next to this README.
 
 Ignore `.venv`, `.pytest_cache`, and `*.egg-info`. They appear after install and are not the product.
 
-When you move to the cloud, you change adapters, not stages: feature store → Redis or ElastiCache; catalog / identity / coupons → Cosmos or DynamoDB; control plane → App Configuration or AWS AppConfig; logger → Event Hubs, MSK, or Kinesis; lake → ADLS or S3; registry → Azure ML or SageMaker Model Registry.
+When you move to the cloud, you change adapters, not stages: feature store → Redis; catalog / identity / coupons → Cosmos DB; control plane → App Configuration; logger → Event Hubs; lake → ADLS; registry → Azure ML.
 
 ---
 
@@ -183,7 +183,7 @@ YAML under `configs/` is how merchandising and science change behavior without a
 
 `catalog.yaml` is the demo store. `guardrails.yaml` is the legal and economic fences (MAP, margin, frequency, inventory, fairness). `ladders.yaml` is which discount steps each segment may even see. `features.yaml` is the contract for `x`: names, defaults, how long a cached feature may live. `control_plane.yaml` is the human override bus: kill switch, freeze, how long a sticky price lasts, the daily discount budget. `versions.yaml` names the current policy, causal model, and guardrail version so a log row is attributable. `segments.yaml` names shopper types.
 
-`stages.yaml` and `offline_stages.yaml` are the words the lab shows next to each left-nav button. `use_cases.yaml` and `architecture.yaml` feed the Architecture tab. The `azure_*.yaml`, `science.yaml`, `sagemaker.yaml`, and `project_map.yaml` files are only navigation for those HTML runbooks.
+`stages.yaml` and `offline_stages.yaml` are the words the lab shows next to each left-nav button. `use_cases.yaml` and `architecture.yaml` feed the Architecture tab. The `azure_*.yaml`, `science.yaml`, and `project_map.yaml` files are only navigation for those HTML runbooks.
 
 Pins attach at ingestion. Reloading models in the middle of a request cannot rewrite a decision that already started.
 
@@ -199,28 +199,16 @@ Do not start on AKS or use Service Bus as the decision log. Service Bus is a com
 
 ---
 
-## SageMaker (how the night shift runs on AWS)
-
-The **SageMaker** tab is step-by-step CLI. SageMaker is **not** the website. Shoppers still hit FastAPI on ECS or Container Apps. SageMaker reads the lake, trains, evaluates, and may register a challenger.
-
-You create an S3 bucket in **`ca-central-1`** with bronze / silver / gold prefixes (the same idea as `data/lake`). An IAM role — not your laptop access key — is what jobs assume. You push this repo’s Docker image to ECR and run Processing jobs for ingest, join, backfill, and OPE, and small CPU Training jobs for causal and bandit. The Model Registry stores a package that stays Pending unless the same gate you already have says yes. Approved pins go back to FastAPI as a shadow then a canary.
-
-Do not wrap `/v1/price` in a SageMaker real-time endpoint on day one. Do not train in `us-east-1` because the machine looks cheaper. Do not treat a job status of Completed as permission to ship; Completed only means the process exited.
-
-If you host the *online* path on AWS as well, the adapters are ElastiCache, DynamoDB, AppConfig, MSK or Kinesis, and S3 — same rule: change `services/` and `offline/lake.py`, not the bandit.
-
----
-
 ## Tests
 
-From this folder, `pytest` should stay green after you change a stage. The tests walk ingestion, preprocess, guardrails and candidates, causal and bandit, the safe response and the log, the lab’s “run this stage” API, the offline pipeline, and they check that the Architecture, Azure, Project, Science, and SageMaker pages still exist.
+From this folder, `pytest` should stay green after you change a stage. The tests walk ingestion, preprocess, guardrails and candidates, causal and bandit, the safe response and the log, the lab’s “run this stage” API, the offline pipeline, and they check that the Architecture, Azure, Project, and Science pages still exist.
 
-When you add tests that need a real cloud account, mark them so they skip unless `PDS_ENV` starts with `azure` or `aws`. Unit tests must keep using in-memory fakes so a laptop without credentials still proves the brain.
+When you add tests that need a real cloud account, mark them so they skip unless `PDS_ENV` starts with `azure`. Unit tests must keep using in-memory fakes so a laptop without credentials still proves the brain.
 
 ---
 
 ## What not to do
 
-Do not rewrite the causal or bandit stages so they “look like” Azure or SageMaker. Do not train inside the online container (checkout will miss its latency budget and you will couple serving to a job that can fail). Do not put propensity or model ids on the public price response. Do not join purchases only on customer id. Do not keep exploring when the log is incomplete. Do not move shopper data to a cheaper region. Do not ship a model because a training job turned green.
+Do not rewrite the causal or bandit stages so they “look like” Azure. Do not train inside the online container (checkout will miss its latency budget and you will couple serving to a job that can fail). Do not put propensity or model ids on the public price response. Do not join purchases only on customer id. Do not keep exploring when the log is incomplete. Do not move shopper data to a cheaper region. Do not ship a model because a training job turned green.
 
 The system should become better at operating the business because it has operated the business. That is why every live decision is logged with a propensity, and why a challenger can be refused.
