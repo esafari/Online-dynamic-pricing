@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Decision science — Pricing Decision Service</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #171d24;
+      --panel-2: #1d252e;
+      --line: #2a3440;
+      --text: #e8eef4;
+      --muted: #93a1b0;
+      --accent: #3ecf8e;
+      --accent-2: #7dd3fc;
+      --warn: #f5b942;
+      --bad: #f07178;
+      --shadow: 0 16px 40px rgba(0,0,0,.32);
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    html.embed header, html.embed nav.toc { display: none; }
+    html.embed .layout { display: block; padding: 8px 10px 32px; }
+    html.embed body { background: #0f1419; }
+    body {
+      margin: 0; color: var(--text);
+      font-family: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+      background:
+        radial-gradient(1100px 520px at 8% -8%, rgba(62,207,142,.12), transparent 50%),
+        radial-gradient(800px 480px at 100% 0%, rgba(125,211,252,.10), transparent 42%),
+        var(--bg);
+    }
+    header {
+      position: sticky; top: 0; z-index: 20;
+      display: flex; justify-content: space-between; align-items: center; gap: 16px;
+      padding: 14px 20px; background: rgba(15,20,25,.92);
+      border-bottom: 1px solid var(--line); backdrop-filter: blur(10px);
+    }
+    .brand h1 { margin: 0; font-size: 1.05rem; }
+    .brand p { margin: 3px 0 0; color: var(--muted); font-size: .82rem; }
+    .layout { display: grid; grid-template-columns: 250px 1fr; gap: 18px; padding: 16px 20px 64px; }
+    @media (max-width: 980px) { .layout { grid-template-columns: 1fr; } nav.toc { position: static; } }
+    nav.toc { position: sticky; top: 78px; align-self: start; display: grid; gap: 4px; max-height: calc(100vh - 96px); overflow: auto; }
+    nav.toc a {
+      color: var(--muted); text-decoration: none; font-size: .78rem;
+      padding: 6px 10px; border-radius: 8px; border: 1px solid transparent;
+    }
+    nav.toc a:hover, nav.toc a.active { color: var(--text); border-color: var(--line); background: var(--panel); }
+    article { max-width: 980px; }
+    section.card {
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: var(--radius); box-shadow: var(--shadow);
+      padding: 22px 24px 26px; margin: 0 0 18px;
+    }
+    h2 { margin: 0 0 10px; font-size: 1.25rem; }
+    h3 { margin: 22px 0 8px; font-size: 1.02rem; color: #d7eee3; }
+    section.card p { line-height: 1.7; margin: 0 0 14px; }
+    section.card p:last-child { margin-bottom: 0; }
+    code { font-family: Consolas, "Cascadia Mono", ui-monospace, monospace; font-size: .88em; }
+    .phase { color: var(--accent); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 6px; }
+    .diagram {
+      font-family: Consolas, ui-monospace, monospace; font-size: .72rem;
+      background: #0c1014; border: 1px solid var(--line); border-radius: 12px;
+      padding: 14px; overflow: auto; white-space: pre; line-height: 1.35; color: #c9e8d8;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1>Decision science — the questions this system is built to answer</h1>
+      <p>Causal effect, uncertainty, explore versus exploit, off-policy evaluation, constrained economics, and a loop that learns from its own prices</p>
+    </div>
+  </header>
+  <div class="layout">
+    <nav class="toc" id="toc"></nav>
+    <article>
+
+<section class="card" id="different">
+  <p class="phase">Why this role is different</p>
+  <h2>Why this is different</h2>
+  <p>Most machine learning systems learn from a dataset that was collected by someone else. A ranking model sees clicks that happened under yesterday’s ranking. A demand forecast sees orders that happened under yesterday’s prices. The model is a spectator. This system is not. When it chooses a 10% discount for Maya on SKU-1234, that choice changes whether she buys, what margin lands, and which row appears in tomorrow’s training file. The decisions made by the model influence the data the model sees next.</p>
+  <p>That is the job. You are not fitting a score that a human will later interpret. You are intervening in a commercial process, measuring what the intervention caused, and feeding that measurement back so the next intervention is better. The long-term bet in this repository is to build that loop once — ingest, guardrail, score, choose, log propensity, join outcomes, evaluate a challenger, promote only if it wins — and then apply it across channels, SKUs, and eventually a portfolio of businesses. Selecting the right method matters more than pledging a particular library. The S-learner in <code>stage4_causal.py</code> is a stand-in you can swap for EconML; Thompson sampling in <code>stage5_bandit.py</code> is a stand-in you can swap for a LinTS posterior. The contract around them stays: a legal action set, a logged propensity, a join on <code>decision_id</code>, and a gate that can refuse to ship.</p>
+</section>
+
+<section class="card" id="because">
+  <p class="phase">The first question</p>
+  <h2>What happens because we change a price</h2>
+  <p>A naive dashboard answers a different question: what happened next. After we discounted, conversion went up. That is association. Shoppers who were going to buy anyway may have been the ones who received the discount, or a campaign may have run in the same week, or inventory may have been healthier on the discounted SKU. The question this system is built to answer is causal: what would have happened to purchase, margin, and retention if we had shown a different price to the same shopper in the same context.</p>
+  <p>Stage 4 does not predict “will they buy.” It predicts expected reward as a function of context and action, μ(x, a). The lab S-learner in <code>stage4_causal.py</code> takes the feature vector from preprocess — segment, price sensitivity, churn risk, LTV, cold start — and each surviving discount arm, and returns a mean and a standard deviation. Reward is not hardcoded to conversion. <code>versions.yaml</code> can pin margin, revenue, LTV, or a composite, because the economic object we care about is not always a click.</p>
+  <p>To keep that estimate honest, some traffic never sees the bandit. The gateway can assign a <code>holdout</code> variant; the orchestrator then forces list price. Holdout is not wasted traffic. It is the clean comparison that lets you keep estimating causal effects after the bandit has taken over the rest of the store. Offline, <code>backfill.py</code> reconstructs features as of the decision timestamp rather than “whatever is in the profile now,” because training on the future is how you invent effects that were never caused by the price.</p>
+</section>
+
+<section class="card" id="uncertainty">
+  <p class="phase">The second question</p>
+  <h2>How uncertainty should affect a decision</h2>
+  <p>A point estimate is not a decision. If two arms have similar μ but one has been seen a thousand times and the other is a deep discount on a cold-start guest, treating them as equal is how you overfit last week’s luck. The S-learner already widens σ for deeper discounts, for customers flagged cold-start, and when sensitivity sits far from the prior. The bandit then samples from that posterior, not from the mean. High σ makes an arm more likely to win a Thompson draw, which is how uncertainty buys information. Low σ makes the greedy arm dominate, which is how certainty harvests margin.</p>
+  <p>Uncertainty also changes what you are allowed to do when the machinery is sick. If the causal model times out, stage 4 reuses last scores or a uniform prior and marks the call degraded. If Event Hubs cannot take the log, exploration stops, because an unlogged experiment is not an experiment — it is a price change you cannot evaluate. If App Configuration cannot be read, the system fails closed to list price. Uncertainty about the world is a reason to explore. Uncertainty about whether you can even record the experiment is a reason to stop.</p>
+</section>
+
+<section class="card" id="explore">
+  <p class="phase">The third question</p>
+  <h2>When to exploit what we know versus experiment to learn</h2>
+  <p>Stage 5 is contextual Thompson sampling with an explicit explore floor. Most calls draw a score for each legal arm from a Gaussian around μ and σ and pick the winner. A fraction of calls, set by <code>PDS_</code> epsilon (5% in the lab), pick uniformly so the logging policy cannot collapse onto one arm. Every twentieth live call is forced to explore for the same reason. A request with <code>mode: exploit</code> skips that floor and takes the highest μ — that is checkout when you have already decided not to learn, or a campaign that must not randomize.</p>
+  <p>The choice is not “always explore” versus “always greedy.” It is sequential. Stickiness in the control plane remembers an offer for the same shopper and SKU so you do not re-randomize inside a session. Frequency caps in guardrails stop you from “learning” by discounting the same person twice a week. When logging is incomplete, the policy switches to exploit so the data you do have remains usable for off-policy evaluation. Active learning here is not a separate service. It is the bandit’s decision, under constraints, about which price is worth showing in order to know more.</p>
+</section>
+
+<section class="card" id="challenger">
+  <p class="phase">The fourth question</p>
+  <h2>Can we estimate a challenger before fully deploying it</h2>
+  <p>Yes, and you must, because shipping a new policy to 100% of checkout to “see if it works” is an expensive experiment you cannot undo on the orders already taken. Off-policy evaluation in <code>offline/ope.py</code> scores a candidate policy on historical logs: inverse propensity (IPS), its stabilized cousin SNIPS, a direct method that uses the causal model, and doubly robust (DR), which mixes them so a bad propensity or a bad μ does not take the whole estimate with it. A bootstrap interval and an effective sample size tell you whether the number is a measurement or a rumor. Rows without a propensity, or marked excluded from training, never enter that calculation.</p>
+  <p>The gate in <code>offline/gate.py</code> is the adult in the room. A challenger is allowed near traffic only if DR says it beats the current policy, the lower end of the interval still beats current, ESS is healthy, fairness and latency checks pass. If they pass, the registry marks Production and a rollout ladder begins at shadow — the new revision logs, it does not serve — then 1%, 5%, 25%, 50%, 100%. If they fail, the current champion stays. That is how you estimate the value of a challenger policy before fully deploying it, and how you refuse to confuse a better offline notebook with a better business.</p>
+</section>
+
+<section class="card" id="constraints">
+  <p class="phase">The fifth question</p>
+  <h2>Optimize economics while respecting constraints</h2>
+  <p>Unconstrained “optimal price” is a fiction. Stage 2 removes arms before the model is allowed to want them. A price below cost plus minimum margin is gone (vendor and finance). A price below MAP is gone (vendor agreement). A discount on a SKU that is not discountable is gone. Stock under the safety threshold blocks discount so you do not learn by emptying a warehouse. A shopper who has already used the frequency cap is not discounted again (customer and brand). Missing consent means generic treatment, not a personalized cut. A bot score high enough to be a scraper does not get exploration. A competitor bound keeps you from wandering so far that operations cannot explain the shelf. A VIP fairness rule stops the model from quietly giving one protected-looking segment a systematically deeper cut. List price is always left on the ladder so the system can fail closed.</p>
+  <p>The control plane adds constraints that change without a new model: kill switch and merchandiser freeze force list price on the next request; a daily discount budget increments until the cap, then the bandit is not allowed to spend more. Stickiness is a customer constraint of a different kind — we already made a promise. Constrained optimization in this repo is not a separate solver. It is “optimize μ only over the legal set,” which is the form that survives contact with a real catalog.</p>
+</section>
+
+<section class="card" id="hte">
+  <p class="phase">What you will do</p>
+  <h2>Causal and heterogeneous treatment-effect modeling</h2>
+  <p>A treatment effect that is the same for every shopper is rarely the one you want to ship. VIP, at-risk, returning, new, and guest do not share a conversion curve. The S-learner conditions on x: sensitivity raises the lift of a discount, churn risk punishes it, LTV weights retention into the reward, segment shifts the baseline. That is heterogeneous treatment effect modeling in the small. The same stage boundary is where a DR-learner, a causal forest, or an EconML estimator would sit later. You pick the method that the data and the decision can support. You do not start there if a calibrated linear μ already ranks arms well inside the guardrails.</p>
+  <p>Heterogeneity that you cannot identify from consented features is not a feature you add by sneaking in protected attributes. Fairness evaluation in <code>offline/fairness.py</code> looks at segment price gaps after the fact. Audit attributes, if they exist, stay out of the vector that stage 4 sees. The modeling job includes knowing what must not enter x.</p>
+</section>
+
+<section class="card" id="calibration">
+  <p class="phase">What you will do</p>
+  <h2>Uncertainty estimation and calibration</h2>
+  <p>Thompson sampling is only as honest as the σ you feed it. The lab grows σ with discount depth and cold start; a production LinTS backend would use the usual quadratic form in the posterior covariance. Propensity is the other calibration. For two arms it is a Gaussian tail; for more it is a Monte Carlo share of Thompson wins, floored at 0.05 so IPS never divides by zero. If every σ is zero, propensity collapses to 1 on the greedy arm — a warning that you have stopped being able to evaluate alternatives.</p>
+  <p>OPE diagnostics are how you find out the logging policy and the candidate have drifted too far to share a support. Effective sample size is the number of historical decisions that still count under the new policy’s weights. If ESS is tiny, you do not have a counterfactual estimate. You have a story. Calibration work in this role is making sure μ, σ, propensity, and ESS describe the same world the shopper was in.</p>
+</section>
+
+<section class="card" id="sequential">
+  <p class="phase">What you will do</p>
+  <h2>Contextual bandits, active learning, sequential decisions</h2>
+  <p>Checkout is not a batch. Each request arrives with a context, an action set that guardrails already shrunk, and a history encoded in features and in the sticky map. Contextual Thompson sampling is the sequential policy. Epsilon and the forced explore tick are the active-learning budget. Stickiness is how you avoid treating two page views as two independent experiments. Campaigns in <code>decide_batch()</code> are sequential decisions at list scale: still logged with propensity, still frequency-capped, never an email of a price that is not already in the offer ledger.</p>
+  <p>Reinforcement learning in the long-horizon sense — a policy that plans over a customer lifetime — is a later method, not a starting requirement. The sequential object you have to get right first is the one-step contextual bandit with a logged propensity and a reward that can be redefined toward LTV when the data can support it. Judgment is noticing when the horizon has grown enough that one-step μ is no longer the right method, and not a day earlier.</p>
+</section>
+
+<section class="card" id="policy">
+  <p class="phase">What you will do</p>
+  <h2>Policy learning and constrained optimization</h2>
+  <p>A policy here is not a notebook that ranks SKUs. It is a function from context to a distribution over legal arms, version-pinned in <code>versions.yaml</code>, served by the orchestrator, and named so OPE can say “this policy” versus “that one.” Learning a better policy means training a new causal model and a new bandit posterior on joined, point-in-time rows, then asking the gate whether the new function is allowed to take traffic. Constrained optimization is upstream of that function: the feasible set is the output of guardrails plus control-plane flags. You do not learn a policy that violates MAP and then clip it. You never score the illegal arm.</p>
+  <p>The reward definition is a policy choice as much as the sampler is. Optimizing conversion will spend margin; optimizing margin will refuse discounts a growth team wanted; a composite is an explicit trade. Changing the reward is how you apply the same loop to a different commercial objective without pretending the math was objective all along.</p>
+</section>
+
+<section class="card" id="counterfactual">
+  <p class="phase">What you will do</p>
+  <h2>Counterfactual and off-policy evaluation</h2>
+  <p>Every live decision writes an experience tuple in <code>stage7_logging.py</code>: context hash, candidate arms, chosen arm, propensity, policy id, causal model id, candidate-set version, variant, sticky replay, exclude-from-training. That tuple is the difference between a bandit you can evaluate and a random number generator with a dashboard. Outcomes join later on <code>decision_id</code>, not on customer_id, with a seven-day window net of refunds. Joining on the person mixes people. Joining on the decision asks what that intervention caused.</p>
+  <p>IPS reweights history by π_new / π_old. SNIPS stabilizes the weights. DR adds the causal model’s guess and corrects it with the residual, so you are not betting the company on one estimator. Overlap between the logging ladder and the candidate ladder is measured because OPE is undefined when the new policy puts mass on arms the old policy never showed. If the hub is down, you buffer and stop exploring — otherwise the propensities you log are fiction and every later counterfactual number is too.</p>
+</section>
+
+<section class="card" id="champion">
+  <p class="phase">What you will do</p>
+  <h2>Experimentation and champion / challenger</h2>
+  <p>The champion is the current policy pin. A challenger is a new causal artifact plus a new bandit, sitting in the registry until the gate speaks. Holdout traffic is the experiment that never uses the bandit, so you can still talk about causal lift against list price after years of personalization. Shadow is the experiment that runs the challenger without showing it. Canary is the experiment that shows it to 1% with App Insights watching p99, 5xx, logging completeness, reward versus predicted μ, propensity PSI, and segment price gaps. Rollback is one traffic-weight command, not a war room hope.</p>
+  <p>The gateway assigns <code>holdout</code>, <code>bandit</code>, <code>shadow</code>, or <code>treatment</code>. Bots do not get exploration; they would poison the very data the challenger needs. Success of a challenger is not a higher OPE point estimate in isolation. It is that estimate, a healthy ESS, a fairness gap inside tolerance, a holdout that still exists, and a canary that did not have to be pulled.</p>
+</section>
+
+<section class="card" id="production">
+  <p class="phase">What you will do</p>
+  <h2>Production ML infrastructure, monitoring, automated deployment</h2>
+  <p>The online path is FastAPI with a p99 budget under 100 ms. Version pins ride on every request so a score is attributable to a model. Hot reload in stage 10 swaps pins without a rebuild. Kill switch and freeze live in the control plane so legal and merchandising do not wait for a data scientist. Metrics sit on arm distribution, exploration rate, propensity, guardrail blocks, and stage timings. Fallbacks are a ladder: Redis down still prices, Cosmos down uses a warm catalog, causal timeout uses last scores, log failure stops explore, config failure fails closed.</p>
+  <p>Automated deployment is tests, an image, a new Container Apps revision, and a gate that can refuse. Azure is the production shape of the same adapters: Redis for features, Cosmos for catalog and offers, Event Hubs for the experience tuple, ADLS and Azure ML for the night shift, App Insights for the canary. You do not rewrite causal or bandit to “be Azure.” You change <code>services/</code>. Production ML in this role is making the loop run when a real channel is calling, and making it stop when the log, the fairness gap, or the latency says so.</p>
+</section>
+
+<section class="card" id="success">
+  <p class="phase">The bar</p>
+  <h2>What success looks like</h2>
+  <p>Success is not a better offline metric. A prettier DR number that never faces holdout, or a model that wins OPE because ESS collapsed onto a handful of VIPs, is not the job. The systems you build should produce measurable economic lift in controlled experiments — holdout versus bandit, champion versus canary — in units of margin, revenue, or LTV that finance would recognize. They should generalize across businesses in the sense that the loop is the same: legal action set, logged propensity, join on the decision, gate, shadow, ramp. They should learn from their own interventions, which is why an unlogged explore is forbidden and why backfill is point-in-time. They should safely automate an increasing share of real commercial decisions: more SKUs, more channels, more of the day without a merchandiser in the loop, and a kill switch that still works at 2 a.m.</p>
+  <p>Over time the goal is simple. The system should become better at operating the business because it has operated the business. That sentence is the reward function for the role, and it is why this repository logs what it did.</p>
+</section>
+
+<section class="card" id="looking">
+  <p class="phase">Judgment, not a checklist</p>
+  <h2>Skills this system actually uses</h2>
+  <p>Exceptional technical ability here looks like knowing which method the decision can support today. Machine learning and statistical modeling show up as the S-learner, the Thompson posterior, and the bootstrap around OPE. Causal inference and experimentation show up as holdout, μ(x, a) rather than “what happened next,” and a refusal to train on future features. Recommendation and marketplace judgment show up as a discrete arm ladder, frequency caps, and stickiness instead of an unconstrained continuous price. Bandits, optimization, and active learning show up as stage 5 plus the epsilon floor plus the legal set from stage 2. Uncertainty estimation shows up as σ and propensity. Counterfactual evaluation shows up as IPS, SNIPS, and DR. Production ML shows up as FastAPI, pins, metrics, fallbacks, and the Azure adapters. Python is the language of the loop; SQL and large behavioral datasets are what the lake becomes when bronze is no longer JSONL on a laptop.</p>
+  <p>Matching a framework checklist is the failure mode. Shipping LinTS because the paper is fashionable, when overlap is already too thin for OPE, is how you automate a worse business. The strong candidate uses this lab to show they can pick the S-learner, then say out loud what evidence would justify replacing it.</p>
+</section>
+
+<section class="card" id="loop">
+  <p class="phase">The long-term opportunity</p>
+  <h2>The continuous loop</h2>
+  <p>Build the capability once. Apply it across a portfolio of decisions. The objects change — price, coupon, rank, credit limit, send-or-not — the loop does not.</p>
+  <div class="diagram">context x, legal arms A(x)
+        │
+        ▼
+  score μ(x,a), σ(x,a)          causal / HTE
+        │
+        ▼
+  sample / ε-explore            contextual bandit
+        │
+        ▼
+  show price (intervention)
+        │
+        ▼
+  log (x, a, π, versions)       experience tuple
+        │
+        ▼
+  outcome y | decision_id       purchase, refund, return
+        │
+        ▼
+  join + point-in-time x        lake / backfill
+        │
+        ▼
+  train, OPE, fairness, drift
+        │
+        ▼
+  gate → shadow → canary → champ
+        │
+        ▼
+  better decision on the next request</div>
+  <p>Open the Online PDS tab and run a price for Maya. Then run holdout on the same SKU and notice only list price remains. Then open Offline learning and run OPE. That path — not a slide — is the job: decision, intervention, outcome, learning, better decision.</p>
+</section>
+
+    </article>
+  </div>
+  <script>
+    if (new URLSearchParams(location.search).has("embed")) {
+      document.documentElement.classList.add("embed");
+    }
+    const toc = document.getElementById("toc");
+    document.querySelectorAll("article section.card").forEach((sec) => {
+      const h = sec.querySelector("h2");
+      if (!h) return;
+      const a = document.createElement("a");
+      a.href = "#" + sec.id;
+      a.textContent = h.textContent;
+      toc.appendChild(a);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,520 @@
+# Bill of materials for Personalized Pricing on Azure.
+# required: must | should | later
+# week: 1–8 matching the implementation plan
+
+groups:
+  - id: foundation
+    title: Foundation
+    about: Subscription, grouping, logs, identity. Create these before any app.
+  - id: hosting
+    title: Hosting
+    about: Where the Pricing Decision Service actually runs.
+  - id: config
+    title: Config and secrets
+    about: Kill switch and credentials. No secrets in source or container env files in prod.
+  - id: online_data
+    title: Online data plane
+    about: Lookups on the hot path (p99 under 100 ms).
+  - id: streaming
+    title: Streaming and lakehouse
+    about: Every decision logged with propensity; outcomes join later.
+  - id: ml
+    title: Machine learning
+    about: Train, evaluate (OPE), register, promote. Never train on Container Apps.
+  - id: edge
+    title: Public edge
+    about: Add when a real channel calls you. Skip for the first internal deploy.
+  - id: observe
+    title: Observability and rollback
+    about: You cannot run a bandit without completeness, latency, and fairness signals.
+  - id: security
+    title: Security and Canada compliance
+    about: PIPEDA, private networking, classification.
+  - id: cicd
+    title: CI/CD
+    about: Test, image, revision. Failed pytest never deploys.
+  - id: optional
+    title: Optional later
+    about: Only if scale, Spark volume, or email campaigns require them.
+
+components:
+  - id: subscription
+    group: foundation
+    required: must
+    week: 1
+    name: Azure subscription
+    tool: Microsoft Entra + Azure billing
+    replaces: nothing — this is the account
+    purpose: Billing boundary and permission root. Use a dedicated dev subscription first.
+    sku_dev: Pay-as-you-go or Visual Studio credit
+    sku_prod: Enterprise Agreement or MCA, separate prod subscription
+    how: az login then az account show. Confirm you have Contributor.
+    pitfall: Do not mix prod pricing data into a personal subscription.
+
+  - id: entra
+    group: foundation
+    required: must
+    week: 1
+    name: Microsoft Entra ID
+    tool: Entra ID (directory)
+    replaces: nothing
+    purpose: Human login (az login, portal) and workload identity for the Container App.
+    sku_dev: Included
+    sku_prod: PIM for privileged roles
+    how: Default tenant of the subscription. Later assign roles to the app's managed identity.
+    pitfall: Do not put long-lived client secrets in GitHub. Use OIDC federation.
+
+  - id: rg
+    group: foundation
+    required: must
+    week: 1
+    name: Resource group
+    tool: Azure Resource Manager
+    replaces: the whole local project folder as a cloud lifecycle unit
+    purpose: One named box in Canada Central. Create, tag, and delete together.
+    sku_dev: n/a
+    sku_prod: n/a
+    how: az group create -n rg-pds-canadacentral-dev -l canadacentral
+    pitfall: Creating resources in East US by habit. Always pass --location canadacentral.
+
+  - id: budget
+    group: foundation
+    required: must
+    week: 1
+    name: Cost Management budget
+    tool: Azure Cost Management
+    replaces: nothing
+    purpose: Email when spend crosses a cap so a forgotten Event Hub does not surprise you.
+    sku_dev: $400/month alert
+    sku_prod: agreed prod cap
+    how: az consumption budget create --amount 400 --resource-group $RG ...
+    pitfall: Budgets alert; they do not always stop resources by themselves.
+
+  - id: logs
+    group: foundation
+    required: must
+    week: 1
+    name: Log Analytics workspace
+    tool: Azure Monitor
+    replaces: local terminal output
+    purpose: Container Apps, APIM, and App Insights all dump here. One workspace per env.
+    sku_dev: Pay-as-you-go, 30-day retention
+    sku_prod: 90–400 day retention to match reward/legal window
+    how: az monitor log-analytics workspace create
+    pitfall: Multiple workspaces make queries impossible. Share one per environment.
+
+  - id: appi
+    group: observe
+    required: must
+    week: 2
+    name: Application Insights
+    tool: Azure Monitor Application Insights
+    replaces: metrics.py in-process counters for production APM
+    purpose: Request duration (p99), dependency calls to Redis/Cosmos, exceptions, live metrics.
+    sku_dev: Workspace-based, default
+    sku_prod: Sampling if volume is high; keep 100% of /v1/price failures
+    how: az monitor app-insights component create --workspace $LA
+    pitfall: Logging propensity or PII in custom events. Log decision_id only on the public path.
+
+  - id: acr
+    group: hosting
+    required: must
+    week: 1
+    name: Azure Container Registry
+    tool: ACR
+    replaces: "docker images sitting only on your laptop"
+    purpose: Stores pds-api:v0.1.0 (and git SHA tags). Container Apps pulls from here.
+    sku_dev: Basic
+    sku_prod: Standard or Premium (geo-replication Canada East later)
+    how: az acr create --sku Basic; docker push
+    pitfall: ACR name is globally unique. Admin user is fine in dev; prod uses managed identity pull.
+
+  - id: cae
+    group: hosting
+    required: must
+    week: 1
+    name: Container Apps environment
+    tool: Azure Container Apps
+    replaces: "uvicorn on 127.0.0.1"
+    purpose: The cluster your app replicas join. Attach Log Analytics at create time.
+    sku_dev: Consumption
+    sku_prod: Workload profiles, zone redundant
+    how: az containerapp env create
+    pitfall: Creating the app without an environment. Always create env first.
+
+  - id: ca
+    group: hosting
+    required: must
+    week: 1
+    name: Container App (PDS)
+    tool: Azure Container Apps
+    replaces: python -m uvicorn ... --port 8080
+    purpose: Runs stages 0–10. Scale 1–N replicas. Revisions + traffic split = shadow/canary.
+    sku_dev: 0.5 vCPU / 1 Gi, min 1 max 3
+    sku_prod: 1 vCPU / 2 Gi, min 3, max 30, HTTP concurrency tuned to p99
+    how: az containerapp create --target-port 8080 --ingress external (dev) or internal (prod)
+    pitfall: Exposing /v1/price:explain, /v1/control, /v1/admin/reload on public ingress.
+
+  - id: ca_job
+    group: hosting
+    required: should
+    week: 6
+    name: Container Apps Job
+    tool: Azure Container Apps Jobs
+    replaces: POST /v1/price:batch from a laptop loop
+    purpose: Overnight campaign scoring (email/CRM lists) with the same decide() contracts.
+    sku_dev: Manual trigger
+    sku_prod: Scheduled cron, 1–2 vCPU
+    how: az containerapp job create --trigger-type Schedule
+    pitfall: Hammering /v1/price one-by-one from Logic Apps without backpressure.
+
+  - id: identity_mi
+    group: config
+    required: must
+    week: 2
+    name: Managed identity
+    tool: System-assigned identity on the Container App
+    replaces: connection strings in .env files
+    purpose: The app gets a badge. Key Vault and App Config grant that badge a role. No secret in the image.
+    sku_dev: System-assigned
+    sku_prod: User-assigned if multiple apps share Key Vault
+    how: az containerapp identity assign --system-assigned then role assignment
+    pitfall: Still embedding Cosmos keys in --env-vars after identity is on.
+
+  - id: kv
+    group: config
+    required: must
+    week: 2
+    name: Key Vault
+    tool: Azure Key Vault
+    replaces: hardcoded secrets
+    purpose: Redis URL, Cosmos key (until AAD), Event Hubs send string, App Insights connection string.
+    sku_dev: Standard
+    sku_prod: Standard, RBAC, purge protection, private endpoint
+    how: az keyvault create --enable-rbac-authorization true
+    pitfall: Access policies mixed with RBAC. Pick RBAC and stick to it.
+
+  - id: appcs
+    group: config
+    required: must
+    week: 2
+    name: App Configuration
+    tool: Azure App Configuration
+    replaces: configs/control_plane.yaml and configs/versions.yaml for runtime flags
+    purpose: pds.kill_switch, merchandiser_freeze, policy_id, causal_model_id, daily_discount_budget. Refresh in seconds.
+    sku_dev: Free
+    sku_prod: Standard, replica in Canada East
+    how: az appconfig create; az appconfig feature set --feature pds.kill_switch
+    pitfall: If App Config is unreachable, fail closed to list price using last cached flags (max 60s).
+
+  - id: redis
+    group: online_data
+    required: must
+    week: 3
+    name: Azure Cache for Redis
+    tool: Azure Cache for Redis
+    replaces: services/feature_store.py dict and StickyPriceStore
+    purpose: feat:{id}, sticky:{id}:{sku} TTL 1800s, freq caps, budget INCR. Target GET under 2 ms.
+    sku_dev: Basic C0 (TLS 6380)
+    sku_prod: Premium P1, zone redundant, Redis 6+, private endpoint
+    how: az redis create --sku Basic --vm-size C0
+    pitfall: Non-SSL port. Always rediss:// on 6380. If Redis is down, degrade features, still return a price.
+
+  - id: cosmos
+    group: online_data
+    required: must
+    week: 4
+    name: Azure Cosmos DB
+    tool: Cosmos DB NoSQL
+    replaces: configs/catalog.yaml, identity profiles, coupon.ledger, decision lookup
+    purpose: Containers catalog (/sku), customers (/customer_id), offers (/code), decisions (/customer_id).
+    sku_dev: Serverless
+    sku_prod: Autoscale 1000–4000 RU, periodic backup, Canada East failover
+    how: az cosmosdb create --capabilities EnableServerless then four sql containers
+    pitfall: One huge container with no partition key. Offers must survive policy change (ledger, not cache).
+
+  - id: evh_ns
+    group: streaming
+    required: must
+    week: 5
+    name: Event Hubs namespace
+    tool: Event Hubs with Kafka enabled
+    replaces: data/log_buffer/decisions.jsonl
+    purpose: Kafka-compatible bus so the existing “topic + propensity” design stays. Capture to ADLS.
+    sku_dev: Standard, 1 TU
+    sku_prod: Premium, 4+ PU, zone redundant
+    how: az eventhubs namespace create --sku Standard --enable-kafka true
+    pitfall: Using Service Bus queues instead. This workload is high-volume telemetry, not a command queue.
+
+  - id: evh_decisions
+    group: streaming
+    required: must
+    week: 5
+    name: Hub pricing.decisions.v1
+    tool: Event Hub
+    replaces: DecisionLogger JSONL
+    purpose: One event per decide(). Fields include propensity, policy_id, candidate_set_version, variant.
+    sku_dev: 8 partitions, 7-day retention
+    sku_prod: partition count sized to 10k+ rps, capture on
+    how: az eventhubs eventhub create -n pricing.decisions.v1 --partition-count 8
+    pitfall: Logging without propensity. OPE becomes fiction. If the hub is down, buffer and force exploit.
+
+  - id: evh_outcomes
+    group: streaming
+    required: must
+    week: 5
+    name: Hub pricing.outcomes.v1
+    tool: Event Hub
+    replaces: POST /v1/outcomes local lake
+    purpose: purchase, refund, return keyed by decision_id. Joined later with a 7-day window, net of refunds.
+    sku_dev: 4 partitions
+    sku_prod: match checkout volume
+    how: az eventhubs eventhub create -n pricing.outcomes.v1
+    pitfall: Joining on customer_id only. Always join on decision_id.
+
+  - id: schema
+    group: streaming
+    required: should
+    week: 5
+    name: Schema Registry
+    tool: Azure Schema Registry (Event Hubs)
+    replaces: implicit JSON shape in Python
+    purpose: Version the experience tuple. Breaking changes get a new schema version, not silent field drops.
+    sku_dev: Included with Standard namespace
+    sku_prod: same, with compatibility checks in CI
+    how: Create registry in the Event Hubs namespace in portal or ARM
+    pitfall: Changing ladders without bumping candidate_set_version. Old propensities become invalid for OPE.
+
+  - id: adls
+    group: streaming
+    required: must
+    week: 5
+    name: Azure Data Lake Storage Gen2
+    tool: Storage account with hierarchical namespace
+    replaces: data/lake/*.jsonl
+    purpose: bronze/decisions, bronze/outcomes, silver/training, silver/backfill, gold/ope, gold/campaigns.
+    sku_dev: Standard LRS, HNS on
+    sku_prod: ZRS or GRS, lifecycle to match retention, private endpoint
+    how: az storage account create --enable-hierarchical-namespace true
+    pitfall: A plain blob account without HNS. Spark/Delta expects a lake, not a dump folder.
+
+  - id: capture
+    group: streaming
+    required: must
+    week: 5
+    name: Event Hubs Capture
+    tool: Capture to ADLS
+    replaces: a custom consumer you would otherwise write on day one
+    purpose: Lands bronze JSON/Avro on a schedule so ML jobs have files even if no Spark job is running yet.
+    sku_dev: 5-minute interval
+    sku_prod: 5-minute, size-based flush
+    how: az eventhubs eventhub update --enable-capture true --storage-account-resource-id ...
+    pitfall: Capture destination in another region.
+
+  - id: mlw
+    group: ml
+    required: must
+    week: 6
+    name: Azure Machine Learning workspace
+    tool: Azure ML
+    replaces: data/registry/models.json and ad-hoc numpy jobs on the laptop
+    purpose: Job submit for causal/bandit/OPE, model registry, environment images, lineage.
+    sku_dev: Default workspace + serverless jobs
+    sku_prod: Dedicated compute cluster off-peak, private network
+    how: az ml workspace create --storage-account $STG
+    pitfall: Training inside the online Container App. That path must stay hot and stateless.
+
+  - id: ml_compute
+    group: ml
+    required: should
+    week: 6
+    name: Azure ML compute (serverless or cluster)
+    tool: Azure ML compute
+    replaces: running OfflinePipeline on your PC
+    purpose: CPU is enough for the current numpy/ridge learners. GPU only if you swap in a neural bandit later.
+    sku_dev: Serverless
+    sku_prod: Cluster, scale to zero
+    how: az ml compute create or job serverless
+    pitfall: Leaving a GPU cluster on overnight.
+
+  - id: spark
+    group: ml
+    required: should
+    week: 6
+    name: Microsoft Fabric or Azure Databricks
+    tool: Spark
+    replaces: offline/join.py and backfill.py once volume exceeds single-node pandas/numpy
+    purpose: Point-in-time feature join at scale, leakage checks, Delta tables.
+    sku_dev: Skip; use Azure ML single node on the JSONL/Delta sample
+    sku_prod: Fabric Spark or Databricks in Canada Central, reading ADLS
+    how: Create workspace; mount adls://lake
+    pitfall: Training on “current” features instead of as-of decision timestamp.
+
+  - id: fd
+    group: edge
+    required: should
+    week: 8
+    name: Azure Front Door
+    tool: Front Door Premium
+    replaces: nothing locally (dev uses Container Apps FQDN)
+    purpose: Anycast, TLS, WAF bot manager, origin health, Canada POP.
+    sku_dev: Skip
+    sku_prod: Premium + WAF
+    how: Create profile, origin group = APIM or Container Apps
+    pitfall: Pointing Front Door at the explain endpoint.
+
+  - id: waf
+    group: edge
+    required: should
+    week: 8
+    name: WAF / bot manager
+    tool: Front Door WAF policy
+    replaces: services/gateway.py bot_score as the only defense
+    purpose: Block scrapers so you do not waste exploration on bots.
+    sku_dev: Skip
+    sku_prod: Prevention mode after a week of Detection
+    how: Attach policy to Front Door
+    pitfall: Prevention on day one with no allowlist for partner IPs.
+
+  - id: apim
+    group: edge
+    required: should
+    week: 8
+    name: API Management
+    tool: Azure API Management
+    replaces: gateway rate limit and route policy
+    purpose: Products — public (POST /v1/price), checkout identity (outcomes), CS (decision lookup), internal (explain/control).
+    sku_dev: Skip or Developer (not SLA)
+    sku_prod: Standard v2 or Premium VNet
+    how: az apim create --sku-name StandardV2
+    pitfall: Developer SKU in production. It has no SLA and is expensive for what you get.
+
+  - id: alerts
+    group: observe
+    required: must
+    week: 2
+    name: Metric alerts and action group
+    tool: Azure Monitor alerts
+    replaces: watching the terminal
+    purpose: p99 > 100 ms, 5xx, Event Hub lag vs request count, kill-switch stale, fairness gap.
+    sku_dev: Email action group
+    sku_prod: Email + Teams + on-call
+    how: az monitor action-group create; az monitor metrics alert create
+    pitfall: Alerts with no owner. Name the person in the action group.
+
+  - id: workbook
+    group: observe
+    required: should
+    week: 7
+    name: Azure Monitor workbook
+    tool: Workbooks
+    replaces: the lab Monitor tab for production
+    purpose: Reward vs predicted μ, propensity PSI, segment price gap, logging completeness.
+    sku_dev: Optional
+    sku_prod: Pinned dashboard
+    how: Create workbook on the Log Analytics workspace
+    pitfall: Dashboards on sampled telemetry only.
+
+  - id: vnet
+    group: security
+    required: should
+    week: 8
+    name: Virtual network + private endpoints
+    tool: Azure VNet, Private Link
+    replaces: public data-plane endpoints in dev
+    purpose: Redis, Cosmos, Key Vault, Storage, Event Hubs not on the public internet in prod.
+    sku_dev: Skip
+    sku_prod: Required
+    how: VNet, subnets, private endpoints, Container Apps VNet integration
+    pitfall: Private endpoints without DNS. The app will hang on names.
+
+  - id: purview
+    group: security
+    required: should
+    week: 8
+    name: Microsoft Purview
+    tool: Purview
+    replaces: nothing in the lab
+    purpose: Scan ADLS, classify PII, restrict who can read bronze decisions.
+    sku_dev: Skip
+    sku_prod: Governance required for PIPEDA evidence
+    how: Register ADLS source, scan, collections
+    pitfall: Protected attributes leaking into feature columns. Policy-deny unexpected fields.
+
+  - id: defender
+    group: security
+    required: should
+    week: 8
+    name: Defender for Cloud
+    tool: Microsoft Defender for Cloud
+    replaces: nothing
+    purpose: Misconfig (public Cosmos, no TLS on Redis), container vulnerabilities on ACR images.
+    sku_dev: Free posture
+    sku_prod: Defender CSPM + containers
+    how: Enable on the subscription
+    pitfall: Ignoring registry scan failures and still deploying.
+
+  - id: oidc
+    group: cicd
+    required: must
+    week: 1
+    name: GitHub Actions OIDC
+    tool: Entra app federation
+    replaces: deploying from a laptop
+    purpose: pytest → docker build → ACR → Container Apps revision. No PAT in secrets.
+    sku_dev: GitHub-hosted runner
+    sku_prod: same, environment protection on prod
+    how: Federated credential on an Entra app; azure/login@v2
+    pitfall: AZURE_CLIENT_SECRET in GitHub. Use OIDC instead.
+
+  - id: aks
+    group: optional
+    required: later
+    week: 8
+    name: Azure Kubernetes Service
+    tool: AKS
+    replaces: Container Apps only if you outgrow it (sustained >10k rps, custom mesh)
+    purpose: Extra control. Not the first hosting choice.
+    sku_dev: Do not start here
+    sku_prod: Only with a platform team
+    how: n/a until needed
+    pitfall: Starting on AKS “because Kubernetes.” You will spend weeks on YAML instead of OPE.
+
+  - id: appservice
+    group: optional
+    required: later
+    week: 1
+    name: App Service (not recommended as primary)
+    tool: Azure App Service
+    replaces: Container Apps
+    purpose: Acceptable only as a throwaway demo. Weak revision/canary compared with Container Apps.
+    sku_dev: Avoid
+    sku_prod: Avoid
+    how: Do not
+    pitfall: Using App Service slots as a substitute for propensity-logged canary.
+
+  - id: servicebus
+    group: optional
+    required: later
+    week: 5
+    name: Service Bus (not for decision logs)
+    tool: Azure Service Bus
+    replaces: nothing in this design
+    purpose: Fine for commands (e.g. “rebuild features”). Wrong for 10k decisions/sec telemetry.
+    sku_dev: n/a
+    sku_prod: n/a
+    how: Do not use instead of Event Hubs
+    pitfall: Choosing Service Bus because it is familiar.
+
+  - id: acs
+    group: optional
+    required: later
+    week: 7
+    name: Azure Communication Services
+    tool: ACS Email
+    replaces: whatever sends win-back mail
+    purpose: Optional if you have no ESP. Campaign job writes offers; ACS or SendGrid sends.
+    sku_dev: Skip
+    sku_prod: Only if you lack an ESP
+    how: After decide_batch has offer codes
+    pitfall: Sending a price that is not in the offer ledger.

@@ -1,0 +1,48 @@
+- id: different
+  title: Why this is different
+  tagline: The model changes the data it sees next
+- id: because
+  title: Because we changed a price
+  tagline: Causal effect, not what happens next
+- id: uncertainty
+  title: Uncertainty in the decision
+  tagline: How σ should change the arm we pick
+- id: explore
+  title: Exploit versus experiment
+  tagline: Thompson sampling, ε, and when to stop exploring
+- id: challenger
+  title: A challenger before deploy
+  tagline: Off-policy value of a policy you have not shipped
+- id: constraints
+  title: Economics under constraints
+  tagline: Inventory, margin, vendor, customer, operations
+- id: hte
+  title: Causal and HTE modeling
+  tagline: μ(x, a) that differs by shopper
+- id: calibration
+  title: Uncertainty and calibration
+  tagline: σ, propensity, ESS
+- id: sequential
+  title: Sequential decisions
+  tagline: Bandits, stickiness, active learning
+- id: policy
+  title: Policy learning
+  tagline: Optimize a reward on a legal action set
+- id: counterfactual
+  title: Counterfactual evaluation
+  tagline: IPS, SNIPS, DR on logged propensities
+- id: champion
+  title: Champion / challenger
+  tagline: Holdout, shadow, canary, rollback
+- id: production
+  title: Production ML
+  tagline: Serving, monitoring, automated deploy
+- id: success
+  title: What success looks like
+  tagline: Economic lift, not a prettier offline score
+- id: looking
+  title: Skills this system uses
+  tagline: Judgment over a framework checklist
+- id: loop
+  title: The continuous loop
+  tagline: Decision, intervention, outcome, learning

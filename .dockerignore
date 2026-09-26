@@ -1,0 +1,12 @@
+.venv
+.git
+.pytest_cache
+**/__pycache__
+**/*.pyc
+data
+src/*.egg-info
+*.egg-info
+.cursor
+docs
+infra
+agent-transcripts

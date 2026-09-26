@@ -1,0 +1,20 @@
+guest:
+  bandit: cold-start prior, wide exploration
+  causal: average elasticity
+  guardrail: heavy caps, no personalization without consent
+new:
+  bandit: explore plus a light exploit
+  causal: uplift of first purchase
+  guardrail: onboarding discount cap
+returning:
+  bandit: contextual Thompson sampling
+  causal: price sensitivity by RFM
+  guardrail: margin floor + MAP
+vip:
+  bandit: exploit, small explore
+  causal: retention vs margin
+  guardrail: never below MAP; silent badge
+at_risk:
+  bandit: explore win-back arms
+  causal: reactivation uplift
+  guardrail: time-limited offers; MAP still binds

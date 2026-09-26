@@ -1,0 +1,23 @@
+# Merchandiser / SRE control plane — not the bandit.
+kill_switch: false
+merchandiser_freeze: false
+sticky_ttl_seconds: 1800
+daily_discount_budget: 10000.0
+exploration_budget_frac: 0.25
+promo_calendar:
+  - id: map_audit_freeze
+    force_list: true
+    active: false
+fx:
+  USD: 1.0
+  CAD: 1.35
+  EUR: 0.92
+tax:
+  CA: 0.13
+  CA-ON: 0.13
+  US: 0.0
+  EU: 0.20
+privacy:
+  log_retention_days: 400
+  strip_pii_from_training: true
+  protected_attrs_never_in_x: [age_exact, gender, ethnicity]

@@ -1,0 +1,11 @@
+default: [0.0, 0.05, 0.10, 0.15, 0.20]
+segments:
+  guest: [0.0, 0.10]
+  new: [0.0, 0.10, 0.15]
+  returning: [0.0, 0.05, 0.10, 0.15]
+  vip: [0.0, 0.05, 0.10]
+  at_risk: [0.0, 0.15, 0.25, 0.30]
+sku_overrides: {}
+logging_policy_arms: [0.0, 0.05, 0.10, 0.15]
+min_arms: 1
+max_arms: 20

@@ -1,0 +1,173 @@
+title: Personalized Pricing System
+tagline: Channels → gateway → identity → features → PDS → log → learn → gate → serve.
+about: >
+  This is the full loop. Channels ask for a price. The edge authenticates and
+  screens bots. Identity and the feature store build context. The Pricing
+  Decision Service applies guardrails, scores arms, and picks one. Every
+  decision is logged with a propensity. Outcomes join later. Offline learning
+  trains, evaluates (OPE), and only then may a model climb back into live
+  traffic. The pieces below include what a complete system needs that a
+  “brain-only” diagram often leaves out: catalog/cost, inventory, coupons,
+  experiment holdout, feature registry, CS explainability, monitoring,
+  control-plane kill switch, sticky prices, offer ledger, and batch campaigns.
+in_short: >
+  Online path returns a price in <100ms. Offline path turns (x, a, p, r)
+  into a gated model. The control plane can freeze, honor, or roll it back.
+added_vs_typical_brain_diagram:
+  - Product catalog / cost / MAP / MSRP service
+  - Inventory & supply signals
+  - Coupon / offer / entitlement service
+  - Experiment platform (holdout A/B vs bandit vs shadow)
+  - Feature registry (name, type, freshness, owner)
+  - Policy-as-code / config service (guardrails, ladders, versions)
+  - Consent & preference center
+  - Explainability / CS lookup by decision_id
+  - Outcome event API (view, cart, purchase, refund)
+  - Monitoring, PSI drift, fairness parity, auto-rollback
+  - Finance reconciliation (quoted vs collected vs refunded)
+  - Circuit breakers and static-price fallback
+  - Human override (merchandiser / sales approval for B2B)
+gaps_in_original_doc:
+  - title: Control plane (kill switch / freeze / promo calendar)
+    why: A merchandiser or SRE must stop personalization in seconds without a redeploy. The original diagram has fallbacks but no human override bus.
+  - title: Session & cross-channel price stickiness
+    why: The same shopper must not see $39.99 on mobile and $44.99 on desktop ten minutes later. Cart integrity and perceived fairness depend on a TTL lock.
+  - title: Offer ledger (honor issued prices)
+    why: An emailed coupon is a contract. Policy updates must not void a code that was already shown. Ledger ≠ creative binding.
+  - title: Global discount & exploration budget
+    why: Per-customer frequency caps do not protect the P&L. Daily promotional spend and exploration share need a knapsack.
+  - title: Batch / campaign scoring path
+    why: Email and ads are not request/response. They need a batch decide() with the same contracts, logged propensities, and offer TTL.
+  - title: Tax / FX / localization
+    why: Post-process mentioned currency in one line. Tax-inclusive markets and CAD/EUR display are a separate service.
+  - title: Online vs offline feature skew
+    why: Training x and serving x diverge silently. PSI on features (not just propensity) is a first-class SLO.
+  - title: Action-space versioning
+    why: If discount ladders change, old propensities are invalid for OPE. candidate_set_version must be a contract, not a log decoration.
+  - title: Multi-objective reward
+    why: E[Revenue|x,p] is one of several Y's — margin, LTV, inventory burn, refund risk. The reward contract must name the mix.
+  - title: PII minimization, retention, legal hold
+    why: Experience tuples contain context. Training must strip PII; protected attributes are logged for audit and never enter x.
+  - title: Search / listing price consistency
+    why: The grid price must match the PDP price for the same session or shoppers bounce. Not only a PDP use case.
+  - title: Cross-SKU cannibalization
+    why: Discounting earbuds can steal headphone margin. A per-SKU bandit is myopic without a basket or category model.
+  - title: Fraud / payment-risk coupling
+    why: Deep discounts on high-refund or stolen-card cohorts burn cash. Risk score should tighten guardrails, not train the bandit.
+  - title: Attribution & delayed conversion window
+    why: Join-later is named but not owned. Who closes the reward window, handles multi-touch, and censors open sessions?
+layers:
+  - id: channels
+    title: Client / channels
+    purpose: Where a price is shown and where outcomes start.
+    pieces: [Web PDP, Mobile, Email / push, Ads, POS / call center, Partner / B2B API]
+  - id: gateway
+    title: Edge / API gateway
+    purpose: Cross-cutting checks before any pricing logic.
+    pieces: [Auth & session, Rate limit, Geo & device, Bot score, Experiment routing]
+  - id: identity
+    title: Identity & context
+    purpose: Who is this shopper, and may we personalize?
+    pieces: [Identity graph, Session stitch, Segment service, Consent / GDPR]
+  - id: features
+    title: Feature store
+    purpose: Low-latency x for inference; point-in-time x for training.
+    pieces: [Online Redis, Offline lake, Stream jobs, Feature registry]
+  - id: catalog
+    title: Catalog, cost, inventory
+    purpose: Legal and economic facts the model may not invent.
+    pieces: [List / MAP / MSRP, Cost, Stock, Competitor feed]
+  - id: pds
+    title: Pricing Decision Service
+    purpose: Guardrails → candidates → causal μ,σ → bandit → offer.
+    pieces: [Eligibility, Causal, Bandit, Post-process, Fallback, Cache]
+  - id: offers
+    title: Coupon & creative
+    purpose: Bind a price to a redeemable, expiring offer and copy.
+    pieces: [Coupon issue, Badge / CTA, TTL, Entitlements]
+  - id: logging
+    title: Logging & event bus
+    purpose: Persist (x, a, p) then join r. 100% of decisions, async.
+    pieces: [Kafka decisions, Kafka outcomes, Schema registry, Lakehouse]
+  - id: offline
+    title: Offline learning
+    purpose: Train, OPE, register, gate — never on the hot path.
+    pieces: [Ingest, Join, Backfill, Causal, Bandit, OPE, Registry, Gate]
+  - id: experiments
+    title: Experiment platform
+    purpose: Holdout A/B for clean causal estimates; bandit on the rest.
+    pieces: [Assignment, Holdout, Shadow, Canary / ramp]
+  - id: monitor
+    title: Monitoring & feedback
+    purpose: Latency, reward vs μ, propensity drift, fairness, rollback.
+    pieces: [SLIs, PSI, Parity, Live KPI vs control]
+  - id: control
+    title: Control plane
+    purpose: Stop, freeze, or budget personalization without a redeploy.
+    pieces: [Kill switch, Merchandiser freeze, Promo calendar, Discount budget]
+  - id: consistency
+    title: Price consistency & offer ledger
+    purpose: Same shopper, same SKU, same price — and honor what was already shown.
+    pieces: [Sticky TTL, Offer ledger, Redemption, Search/PDP match]
+  - id: batch
+    title: Batch / campaign scoring
+    purpose: Score email, ads, and CRM lists with the same contracts as the hot path.
+    pieces: [decide_batch, Offer TTL, Propensity log, Frequency cap]
+  - id: privacy
+    title: Privacy, audit, localization
+    purpose: PII stays out of x; tax/FX are applied after the policy; logs expire.
+    pieces: [Consent, Retention, Protected-attr audit, Tax / FX]
+  - id: support
+    title: Explainability / CS
+    purpose: Look up a decision_id without exposing model guts to shoppers.
+    pieces: [Reason codes, Decision lookup, Audit export]
+loops:
+  online:
+    - Channel sends context (SKU, session, device, geo)
+    - Gateway auth, rate-limits, scores bots, assigns experiment
+    - Control plane may kill-switch, freeze, or exhaust budget → list price
+    - Identity resolves guest vs account and consent
+    - Feature store returns online x; catalog/inventory attach constraints
+    - Sticky TTL may replay the last offer for this shopper × SKU
+    - Guardrails filter arms; causal scores; bandit picks; coupon + ledger bind
+    - Tax / FX localize the display price; async log (x, a, p, versions)
+  offline:
+    - Ingest decisions + outcomes; quarantine bad schema
+    - Join & label reward; censor open windows; clip propensity
+    - Point-in-time backfill; leakage check
+    - Causal + bandit train; fairness + PSI
+    - OPE vs current; registry; deployment gate
+  feedback:
+    - Outcomes POST joins r onto decision_id
+    - Gate pass → shadow → canary → ramp
+    - KPI drop / PSI / fairness / latency → auto-rollback
+    - In-flight requests keep pinned versions
+contracts:
+  feature:
+    name: string
+    type: numeric or categorical
+    freshness_ttl: seconds
+    owner: team
+  decision:
+    context_schema: x_raw
+    action_space: arms
+    action_space_version: candidate_set_version
+    propensity: "(0, 1]"
+  reward:
+    event: purchase
+    window_days: 7
+    net_of: refunds
+    definition: margin
+    multi_objective: "0.5 rev + 0.3 margin + 0.2 ltv"
+  offer:
+    honor: issued codes survive policy change
+    sticky_ttl_seconds: 1800
+    redeem_once: true
+nfrs:
+  latency_p99_ms: 100
+  throughput_rps: 10000
+  availability: 0.9995
+  logging_completeness: 1.0
+  model_freshness_online: seconds
+  model_freshness_offline: daily
+try: Open Architecture, then run a use case. Close the loop with an outcome event and the monitor.

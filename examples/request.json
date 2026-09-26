@@ -1,0 +1,11 @@
+{
+  "customer_id": "c_91823",
+  "session_id": "s_abc",
+  "sku": "SKU-1234",
+  "cart_value": 50.0,
+  "channel": "web",
+  "device": "mobile",
+  "geo": "CA-ON",
+  "ts": "2026-09-11T14:22:01Z",
+  "experiment_hint": null
+}

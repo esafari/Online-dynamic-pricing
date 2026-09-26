@@ -1,0 +1,557 @@
+- id: board
+  number: null
+  title: Price board
+  tagline: See what each customer is offered on each product.
+  about: >
+    This page is not one pipeline stage. It is the finished result of every
+    stage working together. Think of it as the storefront view: six shoppers
+    walk up to five products, and each person can be shown a different price
+    because their history, consent, and risk look different.
+  in_short: >
+    Run the full pricing pipeline once for every customer × product pair,
+    then put the offers on one grid so you can compare them.
+  process:
+    - title: Gather the people and the products
+      detail: >
+        The service loads the public customer profiles (Maya, James, Priya,
+        Alex, Noah, and a guest) and the SKU catalog (earbuds, headphones,
+        case, cable, locked speaker). Each profile already carries a segment,
+        consent flag, and behavioral history. Each SKU already carries list
+        price, cost, MAP, stock, and whether it may be discounted.
+    - title: Price every pairing the same way
+      detail: >
+        For each customer and each SKU the service runs stages 0 through 8.
+        It uses exploit mode, which means “pick the arm the model likes most”
+        rather than randomly exploring. That keeps the grid stable so you are
+        comparing context, not coin flips.
+    - title: Show list price next to the offer
+      detail: >
+        Each cell is the customer-facing price after guardrails, scoring, and
+        rounding. If a cell says “list price”, the pipeline decided (or was
+        forced) not to discount. Click a cell to open the arms and scores
+        behind that one decision.
+    - title: Read across a row or down a column
+      detail: >
+        A row is one person facing five products. A column is one product
+        facing six people. That is the point of contextual pricing: the same
+        earbuds can be $44.99 for Maya and $50 for Alex, because Alex opted
+        out of personalization.
+  try: Click a cell, or a profile then a SKU, to inspect one full decision.
+
+- id: ingestion
+  number: 0
+  title: Request ingestion
+  tagline: Accept the request only if it is complete and safe to run.
+  about: >
+    Every pricing call starts here. The storefront sends a small JSON payload
+    (“who is shopping, which SKU, on which device”). Stage 0 does not pick a
+    price. It decides whether the rest of the pipeline is allowed to start,
+    and it freezes the rulebook that this request will use.
+  in_short: >
+    Check the form, give the decision a unique ID, stamp the time, and lock
+    the model versions so they cannot change mid-flight.
+  process:
+    - title: Check that the request makes sense
+      detail: >
+        Required fields must be present and have the right types. The SKU is
+        mandatory because we cannot price “nothing”. Cart value cannot be
+        negative. If the payload is broken, the service stops with HTTP 400
+        and never builds a half-finished context. A bad request must not leak
+        into the model.
+    - title: Give the decision a unique, time-ordered ID
+      detail: >
+        A new decision_id (UUID v7) is created unless the caller already sent
+        one. Time-ordered IDs make logs easy to sort. This ID is what support,
+        analytics, and later “did they buy?” events will join on. If you send
+        the same decision_id twice, the service returns the first answer
+        instead of pricing again. That is idempotency: retries do not create
+        a second coupon or a second experiment assignment.
+    - title: Trust the server clock, keep the client clock
+      detail: >
+        Phones can have the wrong time. Campaign windows and coupon expiry
+        must use the server’s clock. The time the app claimed is stored next
+        to it for debugging, but it does not drive the decision.
+    - title: Pin the versions for this request
+      detail: >
+        Right now the service writes down which policy, causal model,
+        guardrail pack, and price ladder it will use (for example ts_v7,
+        s_learner_v1, gr_v12). If someone hot-reloads a new model one
+        millisecond later, this request still finishes on the old pins. That
+        prevents a torn decision where guardrails came from v12 and scores
+        came from v13.
+    - title: Look up the product
+      detail: >
+        The SKU is loaded from the catalog (list price, cost, MAP, stock,
+        discountable flag). Unknown SKU → HTTP 404. We do not invent a price
+        for a product we do not sell.
+    - title: Treat a missing customer as a guest
+      detail: >
+        No login is not an error. The shopper becomes segment “guest”. Later
+        stages will refuse personalization and usually serve list price. That
+        is safer than guessing who they are.
+  try: Leave SKU blank for a 400. Type a fake SKU for a 404. Run once, paste the decision_id, run again — you should see an idempotent cache hit.
+
+- id: preprocess
+  number: 1
+  title: Preprocessing
+  tagline: Turn “who is this person?” into numbers the model can read.
+  about: >
+    The model cannot read a name or a cookie. It needs a clean vector of
+    features, called x. Stage 1 builds that vector from identity, the online
+    feature store, and the current request. It also enforces privacy: if the
+    shopper did not consent to personalization, their history is wiped from x
+    before any model sees it.
+  in_short: >
+    Find the person, fetch their recent behavior, fill gaps, hide PII, and
+    encode everything into a standard numeric vector.
+  process:
+    - title: Resolve who the shopper is
+      detail: >
+        A logged-in customer_id wins over an anonymous cookie or device id.
+        Maya maps to the “returning” profile with two past orders. An unknown
+        id is treated as a new / cold-start customer. No id at all is a guest.
+        If two identities conflict, the logged-in account is trusted.
+    - title: Fetch live features
+      detail: >
+        The service asks the online feature store (Redis in production, a
+        local snapshot here) for things like sessions in the last 7 days,
+        lifetime orders, predicted LTV, and price sensitivity. These are the
+        same features the model was trained on. If the store is down, we do
+        not crash — we fall back to segment defaults and mark the decision
+        “degraded” so it will not be used as training data.
+    - title: Fill holes and clip extremes
+      detail: >
+        Every feature has a time-to-live. A stale “sessions_7d” is replaced
+        with the typical value for that segment (returning vs VIP vs guest).
+        A missing value gets a global default. A wild outlier (5,000 page
+        views in a week) is clipped into a sane range and flagged. The model
+        should see familiar numbers, not garbage.
+    - title: Respect consent and strip private data
+      detail: >
+        If consent.personalization is false — or missing — behavioral fields
+        (orders, LTV, sensitivity, age band, and so on) are replaced with
+        generic defaults. Email, phone, and name are dropped entirely. The
+        model is then scoring “a typical shopper in this segment”, not Alex
+        Rivera the person. That is why Alex often sees list price even though
+        he looks like a returning customer.
+    - title: Encode into the vector x
+      detail: >
+        Numbers are standardized with the mean and standard deviation from
+        training data — we never recompute those on the live request, or the
+        model would drift. Categories such as segment, geo, channel, and
+        device become one-hot columns (returning = 1, vip = 0, …). A
+        “was this missing?” column travels with each number so the model can
+        tell “zero orders” from “we do not know”.
+    - title: Hash the vector
+      detail: >
+        A SHA-256 of x is stored as x_hash. Logs can say “this was the exact
+        context” without reprinting a huge array, and a score cache can key
+        on (x_hash, arm set, model version).
+  try: Switch from Maya to Alex (consent off) and watch price_sensitivity_score snap back to the generic 0.5. Toggle “feature store down” to see missing flags and degraded=true.
+
+- id: guardrails
+  number: 2
+  title: Guardrails
+  tagline: Cross off any discount the business is not allowed to give.
+  about: >
+    A model will happily recommend a 30% off if that looks profitable on
+    paper. Guardrails are the adult in the room. They are hard rules — legal,
+    financial, fairness, and safety — and they override the model. This stage
+    does not choose the winner. It only decides which prices are still legal
+    to consider.
+  in_short: >
+    Start from a discount ladder, delete any arm that breaks a rule, and keep
+    list price as the last resort.
+  process:
+    - title: Start from the discounts we might offer
+      detail: >
+        Each segment has a ladder of discount percentages. Returning shoppers
+        might see 0%, 5%, 10%, 15%. VIP is narrower. At-risk is deeper. Each
+        step is an “arm” with an id like disc_10, meaning 10% off the list
+        price. Guardrails will now keep or drop those arms.
+    - title: Apply the static (always-on) rules
+      detail: >
+        Price floor — the price must stay above cost × (1 + minimum margin).
+        If earbuds cost $28 and min margin is 15%, we cannot go below $32.20.
+        Price ceiling — never above MSRP. MAP — never below the manufacturer’s
+        advertised price (earbuds MAP is $44.99, so 15% off $50 is illegal).
+        If the SKU is marked “not discountable”, every discount arm dies and
+        only list price remains. Outside a campaign window, same result.
+    - title: Apply the dynamic (this-moment) rules
+      detail: >
+        These depend on the shopper and the stock right now. Frequency cap —
+        do not hand another coupon if they already used too many in 30 days.
+        Inventory — if stock is under the safety threshold (10 units here),
+        do not discount a scarce item. Competitor band — do not wander more
+        than 10% from the competitor’s price. Bot score — refuse discounts to
+        likely scrapers. Consent — no personalized discount without consent.
+        Fairness — VIP should not receive a deeper cut than policy allows.
+    - title: When rules disagree, use a priority order
+      detail: >
+        Legal constraints (MAP, consent, abuse) beat fairness, which beats
+        margin, which beats frequency, which beats operational convenience.
+        We never “average” two conflicting rules. The stricter legal one wins.
+    - title: Write down what survived
+      detail: >
+        The output is a list of allowed arms, a list of blocked arms each
+        with a reason code (margin_floor, below_map, low_inventory, …), and a
+        small constraint summary the causal model can see. If every discount
+        is blocked, list price is still allowed. Checkout never goes blank.
+    - title: If the rule service is down
+      detail: >
+        Use the last cached ruleset. If there is no cache either, fail safe
+        and offer only list price. Making money with a broken rule engine is
+        worse than making no promotional margin for a few minutes.
+  try: Raise min margin to 0.80 — most arms die with margin_floor. Set stock to 5 — discounts die with low_inventory. Force consent off — personalized discounts disappear.
+
+- id: candidates
+  number: 3
+  title: Candidate generation
+  tagline: Build the short menu of prices the model is allowed to choose from.
+  about: >
+    After guardrails, we still need a concrete list of prices: $50, $47.50,
+    $45.00, …. That list is the action space A(x). It must be small enough
+    to learn from, deterministic for the same shopper, and overlapping with
+    the prices we have used before so we can later say “would a new policy
+    have been better?”
+  in_short: >
+    Take the segment’s discount ladder, keep only the arms guardrails allowed,
+    and attach a real dollar price and margin to each one.
+  process:
+    - title: Pick the right ladder for this person
+      detail: >
+        Guest, new, returning, VIP, and at-risk each have their own set of
+        discounts. Priya (at-risk) starts with deeper cuts (15–30%) because
+        the business is willing to spend more to keep her. James (VIP) starts
+        with shallower cuts — we do not want to train a loyal customer to
+        wait for a sale.
+    - title: Widen the ladder for high-margin products
+      detail: >
+        If a SKU has a lot of room between cost and list price (the leather
+        case is a good example), extra rungs from the default ladder are
+        merged in. Low-margin goods stay tight so we do not accidentally
+        give away the profit.
+    - title: Keep only legal, unique prices
+      detail: >
+        Drop any arm guardrails already blocked. Drop anything above MSRP.
+        If two arms round to the same dollar amount, keep one. The result
+        should be about 5–20 arms: enough to learn, few enough to score
+        quickly.
+    - title: Attach money to each arm
+      detail: >
+        For 10% off a $50 list price the arm becomes {id: disc_10, price:
+        45.00, discount: 0.10, margin: 37.8%}. These are the options stage 4
+        will score and stage 5 will pick from. The ladder version (cs_v3) is
+        logged so we know which menu was on the table.
+    - title: Never return an empty menu
+      detail: >
+        If filtering removed everything, we put list price back and mark
+        no_arms. A shopper always sees a number. That number might just be
+        “full price”.
+  try: Run Maya, then Priya, then James on the same SKU. Priya’s deeper ladder often collapses to list price on earbuds because 15% off is below MAP.
+
+- id: causal
+  number: 4
+  title: Causal scoring
+  tagline: Guess how much each remaining price would earn, and how unsure we are.
+  about: >
+    Now we have a few legal prices. For each one we ask: “If we show this
+    price to this shopper, what reward should we expect?” Reward here is not
+    “did they like it?” — it is a business outcome. The default is expected
+    margin: (price − cost) × chance they buy. We also keep an uncertainty
+    number so the next stage knows when to explore.
+  in_short: >
+    Score every surviving arm with an expected reward μ and a spread σ,
+    using the shopper’s features and the size of the discount.
+  process:
+    - title: Agree on the reward we are optimizing
+      detail: >
+        This request is pinned to one definition (margin, revenue, LTV-proxy,
+        or a blend). We do not mix them. “Highest revenue” and “highest
+        margin” will pick different discounts — a cheap sale can grow
+        revenue and destroy profit. The lab lets you switch the definition
+        to see that tension.
+    - title: Estimate the chance of a purchase
+      detail: >
+        A simple S-learner (one model that sees both the person and the
+        discount) predicts conversion. A price-sensitive shopper gets more
+        lift from 10% off than a VIP does. High churn slightly lowers the
+        baseline. In production you can drop in a stronger causal model
+        (DR-learner, Dragonnet) without changing this stage’s inputs/outputs.
+    - title: Turn conversion into expected reward
+      detail: >
+        Expected margin ≈ (price − cost) × P(buy). Expected revenue ≈ price ×
+        P(buy). A deeper discount can raise P(buy) and still lower margin if
+        the extra purchases do not cover the giveaway. μ is that expected
+        dollar amount. Uplift is μ minus the list-price μ — “how much better
+        than doing nothing.”
+    - title: Say how unsure we are
+      detail: >
+        σ is the uncertainty. Deep discounts we have rarely shown, and
+        brand-new customers, get a larger σ. The bandit uses that as an
+        exploration bonus: “we are not sure, so maybe try it.” We also store
+        a 10th and 90th percentile so you can see a pessimistic / optimistic
+        range, not just a point guess.
+    - title: Score every arm in one batch
+      detail: >
+        All remaining arms go through the model together (budget about 30ms).
+        If the model times out, we reuse a cached score or a wide “we have
+        no idea” prior and mark the decision degraded. We still need numbers
+        so the bandit can pick something.
+  try: Raise price sensitivity — discount arms’ μ should rise relative to list price. Toggle causal timeout to see the wide fallback prior.
+
+- id: bandit
+  number: 5
+  title: Bandit selection
+  tagline: Pick one price, sometimes to earn, sometimes to learn.
+  about: >
+    If we always chose the arm with the highest μ, we would never learn
+    whether a less-used discount is actually better. A bandit balances
+    exploitation (take the current best) and exploration (try something
+    uncertain). Whatever it picks, it must write down the probability that
+    this arm was going to win — the propensity. Without that number we cannot
+    later evaluate a new policy on old logs.
+  in_short: >
+    Draw a possible reward for each arm, take the highest draw, and record
+    how likely that arm was to win.
+  process:
+    - title: Combine two kinds of uncertainty
+      detail: >
+        The causal model already gave us σ (“the world is noisy”). The
+        bandit adds its own posterior uncertainty (“we have not tried this
+        arm on people like you very often”). New customers and new arms get
+        extra spread so they get sampled more. Total uncertainty is the two
+        combined.
+    - title: Thompson sampling — one imaginary outcome each
+      detail: >
+        For every arm we draw one random number from a bell curve centered
+        on μ. The arm with the luckiest draw wins this request. Arms with
+        high μ win often. Arms with high σ win sometimes, which is how
+        exploration happens naturally. If you run this tab in “live” mode
+        several times, the winner should jitter.
+    - title: Force a little extra exploration
+      detail: >
+        On top of sampling, about 5% of requests pick a uniformly random
+        legal arm (ε-greedy). Every 20th request is also forced to explore.
+        That guarantees we keep collecting data even if the model becomes
+        overconfident.
+    - title: Compute the propensity
+      detail: >
+        Propensity is P(this arm would be chosen | this context). With two
+        arms there is a closed-form formula. With more, we simulate the
+        contest about 256 times and count wins. If the number would be 0 we
+        clamp it to 0.05. A zero propensity makes later math (divide by
+        propensity) explode, so we never allow it.
+    - title: Exploit mode for the board
+      detail: >
+        The price board uses exploit mode: skip the random draw and take the
+        arm with the highest μ. That is “what the model currently believes is
+        best.” Use live mode on this tab when you want to see exploration.
+        The shopper never sees the propensity; only the log does.
+  try: Set mode to live and click Run several times — the chosen arm should change. Switch to exploit — it should stick to the highest μ.
+
+- id: postprocess
+  number: 6
+  title: Post-processing
+  tagline: Dress the chosen price for a human, without changing the policy.
+  about: >
+    The bandit picked an arm, say disc_10 at $45.00. Shoppers do not want a
+    raw arm id. They want $44.99, a “10% off” badge, and a coupon that
+    expires in ten minutes. This stage is presentation. It must not sneak
+    around guardrails, and it must not put model guts on the page.
+  in_short: >
+    Round the price, issue a coupon if needed, write the badge and the
+    support reason codes, and set an expiry time.
+  process:
+    - title: Start from the chosen arm’s price
+      detail: >
+        If the arm is disc_10 on a $50 item, we begin at $45.00. Everything
+        after this is cosmetic or operational (coupons, copy), not a new
+        pricing decision.
+    - title: Charm-round, but never break the floor
+      detail: >
+        People expect $39.99 more than $40.00. If charm rounding would push
+        the price under the margin floor (or MAP), we bump it back up. Making
+        a price look pretty is not an excuse to sell below cost.
+    - title: Bind a short-lived coupon
+      detail: >
+        Any real discount gets a coupon code (SAVE10-…) with a short TTL,
+        default 10 minutes, so the offer cannot be screenshotted and reused
+        next month. If the coupon service is down we still return the price
+        and skip the code. Checkout > coupons.
+    - title: Decide what the shopper sees
+      detail: >
+        A badge (“10% off”) is shown only when the discount is at least 5%.
+        VIP shoppers do not get a badge — the cheaper price is applied
+        quietly so we do not train them to hunt sales. Reason codes such as
+        segment:returning and arm:disc_10 go to customer support and legal,
+        not as marketing copy.
+    - title: Stamp when the offer dies
+      detail: >
+        expires_at tells the storefront how long it may cache this price.
+        After that, they must ask again. The world (stock, campaign, model)
+        may have changed.
+  try: Uncheck charm pricing and compare $45.00 vs $44.99. Break the coupon service — you still get a price, with coupon_skip.
+
+- id: logging
+  number: 7
+  title: Logging
+  tagline: Write down exactly what we knew, what we showed, and why.
+  about: >
+    A price without a log is a one-off. With a log we can audit a complaint,
+    train the next causal model, and — most importantly — evaluate a new
+    policy on old traffic without running a risky A/B test first. That last
+    part is called off-policy evaluation (OPE). It only works if we stored
+    the propensity and the full set of arms we could have chosen.
+  in_short: >
+    Save the experience tuple (who, what we could offer, what we did offer,
+    how likely that was, which models) without delaying the shopper.
+  process:
+    - title: Assemble the experience tuple
+      detail: >
+        One record per decision: decision_id, timestamp, customer and session,
+        the human-readable features (x_raw), the hash of x, which arms were
+        on the table, which arm was chosen, the final price, the propensity,
+        whether this was an exploration draw, every version pin, guardrail
+        reason codes, and how many milliseconds each stage took.
+    - title: Why propensity is not optional
+      detail: >
+        Next month you may want to ship a new bandit. OPE answers “would that
+        new policy have made more margin on last week’s traffic?” The
+        estimators (IPS, DR) reweight old decisions by 1 / propensity. If we
+        forgot to log it, or logged a zero, the math fails and you are stuck
+        running a live experiment on real customers.
+    - title: Deliver the log without blocking checkout
+      detail: >
+        The record is appended to a local file now (data/log_buffer). In
+        production it goes to Kafka topic pricing.decisions.v1, keyed by
+        decision_id. If Kafka is down we buffer on disk and keep serving
+        prices. The shopper must never wait on a logger.
+    - title: Join the outcome later
+      detail: >
+        Minutes or days later a purchase, refund, or “left without buying”
+        event arrives with the same decision_id. We attach revenue, margin,
+        and units. That completed row (context, action, propensity, reward)
+        is what trains the next model. Rows marked degraded or
+        exclude_from_training are kept for audit but skipped for learning,
+        so a fallback day does not teach the model “always use list price”.
+  try: Change the customer or SKU and inspect the JSON. Confirm propensity is there and exclude_from_training matches degraded.
+
+- id: response
+  number: 8
+  title: Response building
+  tagline: Send the storefront a price — and nothing it should not see.
+  about: >
+    The internal decision is rich: scores, propensities, model ids, traces.
+    The client needs almost none of that. Stage 8 is a privacy and
+    competitive-safety filter. If a competitor or a curious browser user
+    views the network tab, they should learn the price, not how we think.
+  in_short: >
+    Copy the customer-facing fields into a small JSON document and leave
+    the science in the log.
+  process:
+    - title: Keep only what the app must render
+      detail: >
+        The public body is price, currency, discount percent, optional badge,
+        optional coupon, a short list of reason codes, decision_id (so
+        support can find the log), and expires_at (so the app knows when to
+        ask again).
+    - title: Hide the scoring machinery
+      detail: >
+        Propensity, μ, σ, sampled scores, causal_model_id, policy hash, and
+        the full feature vector stay out of the response. Support can still
+        look them up server-side with the decision_id. This tab shows both
+        payloads side by side so the difference is obvious.
+    - title: Be tidy under failure
+      detail: >
+        Optional fields that are empty are omitted, not sent as null. If
+        something goes wrong while formatting JSON we fall back to a tiny
+        {price, currency, decision_id} so the page still draws a number.
+  try: Compare the two JSON cards. Left = browser/app. Right = internal only.
+
+- id: fallback
+  number: 9
+  title: Fallback handling
+  tagline: If something breaks, still show a price — a safe one.
+  about: >
+    Checkout cannot display “error computing discount”. Stage 9 is a ladder
+    of increasingly conservative backups. Each step down is less smart and
+    more safe. We always tell the log that we degraded, and we keep those
+    rows out of training so a bad afternoon does not become the next model’s
+    idea of normal.
+  in_short: >
+    Walk from “full intelligence” down to “just the catalog price” until
+    something works, then return that price with a reason.
+  process:
+    - title: Prefer the full pipeline
+      detail: >
+        If every dependency is healthy, we do nothing special. The normal
+        stages already produced a price.
+    - title: Then reuse cached model scores
+      detail: >
+        If the causal model is slow or down, reuse the last scores for this
+        (context, arm set, model version). Better a slightly stale μ than a
+        blank page. Flag causal_timeout.
+    - title: Then use segment defaults
+      detail: >
+        If the feature store is down we already built x from “typical
+        returning shopper” (or guest) values. Pricing continues, but it is
+        not personalized. Flag degraded_features.
+    - title: Then pick a random legal arm
+      detail: >
+        If the bandit itself throws, we ε-greedy over the arms guardrails
+        still allow. We lose the clever explore/exploit math but we do not
+        lose a price. Flag bandit_fallback.
+    - title: Then serve list price
+      detail: >
+        If guardrails conflict or no arms remain, the shelf price in the
+        catalog is the answer. No coupon, no badge. Flag no_arms or
+        guardrail_all_blocked.
+    - title: Last resort — static catalog
+      detail: >
+        If even the catalog lookup is unhappy, return whatever static price
+        we have and a minimal JSON body. Ugly, but the cart still works.
+        Flag static_catalog.
+    - title: Coupon and logger must not take the site down
+      detail: >
+        A dead coupon service skips the code. A dead Kafka buffers locally.
+        Those are inconveniences, not checkout outages.
+  try: Tick the failure boxes one at a time, then several at once. You should always get a dollar amount, with degraded=true and a readable reason.
+
+- id: cache
+  number: 10
+  title: Model cache & hot reload
+  tagline: Keep the brains in memory, and swap them without dropping requests.
+  about: >
+    Loading a model from disk on every request would blow the 69ms budget.
+    Stage 10 keeps the causal model, bandit state, guardrail rules, and
+    ladders in RAM. When data science publishes a new file, we swap the
+    pointer. Requests that already started keep the versions they pinned in
+    stage 0, so a reload cannot split one decision across two models.
+  in_short: >
+    Serve from memory, reload by swapping a pointer, and leave in-flight
+    requests on the old pointer.
+  process:
+    - title: What lives in memory
+      detail: >
+        Causal model (ONNX in production, the S-learner here), bandit
+        posteriors, the current guardrail JSON, price ladders, and segment
+        default features. Hits are microseconds, not disk I/O.
+    - title: How a reload works
+      detail: >
+        A config push or registry webhook says “gr_v13 is ready”. We load the
+        new artifact beside the old one, check it is not corrupt, then swing
+        the pointer. New requests pin v13. Requests already in preprocess
+        still hold v12 on their DecisionContext.
+    - title: What we refuse to do
+      detail: >
+        We do not apply a half-written file. We do not change versions on a
+        request that already pinned them. If the new file is bad we keep the
+        old one and alert. If two versions disagree in a way we cannot
+        reconcile, we reject the swap.
+    - title: Memory pressure
+      detail: >
+        If too many old models pile up, unused ones are evicted (least
+        recently used). The currently pinned production set is never evicted.
+        This demo only needs one set, so eviction is not wired.
+  try: Click Reload configs. The version chips at the top refresh from the YAML files without restarting the server. In-flight decisions would keep their old pins.

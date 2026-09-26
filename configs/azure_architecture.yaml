@@ -1,0 +1,57 @@
+title: Azure architecture for this pricing lab
+tagline: Same pricing service. Azure hosts, stores, logs, trains, and gates it.
+about: >
+  This project decides a price for a shopper and SKU in under 100 ms, logs the
+  decision with a propensity, then trains offline. Azure does not replace that
+  logic. It replaces the local stand-ins: process hosting, cache, database,
+  event bus, lakehouse, model registry, and control-plane flags. Region is
+  Canada Central so personal data stays in Canada.
+in_short: >
+  Channel → Front Door → APIM → Container Apps (PDS) → Redis + Cosmos →
+  Event Hubs → ADLS → Azure ML (OPE gate) → canary revision.
+try: Open Azure → Overview, then Architecture diagram, then CLI commands.
+layers:
+  - title: Front Door
+    purpose: TLS, geo routing, and WAF/bot filtering in front of the API.
+    tool: Azure Front Door + WAF
+    maps_to: Gateway / bot / geo
+  - title: API Management
+    purpose: Auth, rate limits, and product split so /v1/price is public and /explain is not.
+    tool: Azure API Management
+    maps_to: Rate limit, public vs explain routes
+  - title: Container Apps
+    purpose: Runs the FastAPI Pricing Decision Service (stages 0–10) with replica scale and revision traffic split.
+    tool: Azure Container Apps
+    maps_to: Pricing Decision Service stages 0–10
+  - title: App Configuration
+    purpose: Kill switch, freeze, version pins, and budget without a new image.
+    tool: Azure App Configuration
+    maps_to: Kill switch / freeze / versions
+  - title: Key Vault
+    purpose: Stores connection strings and keys. The app reads them via managed identity.
+    tool: Azure Key Vault
+    maps_to: Secrets
+  - title: Redis
+    purpose: Sub-millisecond online features, sticky price TTL, frequency caps, and spend counters.
+    tool: Azure Cache for Redis
+    maps_to: Feature store + sticky price
+  - title: Cosmos DB
+    purpose: Catalog (list/MAP/cost/stock), identity, offer ledger, and decision lookup.
+    tool: Azure Cosmos DB
+    maps_to: Catalog, identity, offer ledger
+  - title: Event Hubs
+    purpose: Async log of every (context, action, propensity) and later outcomes. Kafka protocol.
+    tool: Azure Event Hubs (Kafka mode)
+    maps_to: Decision + outcome logs
+  - title: Storage (ADLS)
+    purpose: Lakehouse for bronze capture, silver joined training rows, gold OPE reports.
+    tool: Azure Data Lake Storage Gen2
+    maps_to: Lakehouse bronze/silver/gold
+  - title: Azure ML
+    purpose: Offline causal/bandit training, OPE evaluation, model registry, promotion gate.
+    tool: Azure Machine Learning
+    maps_to: Causal, bandit, OPE, registry, gate
+  - title: Monitor
+    purpose: Latency, error rate, completeness, fairness, and automatic revision rollback.
+    tool: App Insights + Azure Monitor
+    maps_to: Latency, fairness, rollback

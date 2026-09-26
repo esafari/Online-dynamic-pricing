@@ -1,0 +1,81 @@
+- id: kids
+  title: Overview
+  tagline: What Azure is doing for this project
+- id: components
+  title: All components
+  tagline: Every Azure service, in the order you grow it
+- id: picture
+  title: Architecture diagram
+  tagline: Request path and service map
+- id: tools
+  title: Tools
+  tagline: Each Azure product and why it is used
+- id: cli
+  title: CLI commands
+  tagline: Login, build, deploy, verify
+- id: how
+  title: How to use this file
+  tagline: Prerequisites, Canada Central, checkboxes
+- id: map
+  title: Azure architecture
+  tagline: Local component → Azure service
+- id: names
+  title: Phase 0 · Names
+  tagline: Set PowerShell variables once
+- id: login
+  title: Phase 1 · Login
+  tagline: Subscription, resource group, providers
+- id: docker
+  title: Phase 2 · Containerize
+  tagline: Docker build and local prove-out
+- id: aca
+  title: Phase 3 · Container Apps
+  tagline: ACR + the lab live on Azure
+- id: secrets
+  title: Phase 4 · Control plane
+  tagline: Key Vault + App Configuration
+- id: redis
+  title: Phase 5 · Redis
+  tagline: Online features and sticky prices
+- id: cosmos
+  title: Phase 6 · Cosmos DB
+  tagline: Catalog, identity, offer ledger
+- id: events
+  title: Phase 7 · Event Hubs
+  tagline: Decisions, outcomes, ADLS capture
+- id: ml
+  title: Phase 8 · Azure ML
+  tagline: Train, OPE, registry, canary
+- id: edge
+  title: Phase 9 · Front Door
+  tagline: APIM, public vs admin routes
+- id: monitor
+  title: Phase 10 · Monitor
+  tagline: App Insights, alerts, rollback
+- id: batch
+  title: Phase 11 · Campaigns
+  tagline: Batch scoring jobs
+- id: code
+  title: Adapter swap list
+  tagline: Change services, not stages
+- id: privacy
+  title: Phase 12 · PIPEDA
+  tagline: Canada residency and consent
+- id: verify
+  title: Go-live checks
+  tagline: Curl the Azure FQDN
+- id: cost
+  title: Cost sketch
+  tagline: Dev vs prod monthly
+- id: plan
+  title: Eight-week plan
+  tagline: Calendar from lab to prod
+- id: cicd
+  title: GitHub Actions
+  tagline: Test, build, deploy revision
+- id: fallback
+  title: Azure fallbacks
+  tagline: Redis/Cosmos/Event Hub outages
+- id: done
+  title: Definition of done
+  tagline: Five gates before you call it live

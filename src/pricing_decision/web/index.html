@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pricing Decision Service</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #171d24;
+      --panel-2: #1d252e;
+      --line: #2a3440;
+      --text: #e8eef4;
+      --muted: #93a1b0;
+      --accent: #3ecf8e;
+      --accent-2: #7dd3fc;
+      --warn: #f5b942;
+      --bad: #f07178;
+      --shadow: 0 16px 40px rgba(0,0,0,.32);
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+      background:
+        radial-gradient(1100px 520px at 8% -8%, rgba(62,207,142,.12), transparent 50%),
+        radial-gradient(800px 480px at 100% 0%, rgba(125,211,252,.10), transparent 42%),
+        var(--bg);
+      color: var(--text);
+    }
+    header {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 16px; padding: 16px 20px 8px;
+    }
+    .brand h1 { margin: 0; font-size: 1.15rem; }
+    .brand p { margin: 4px 0 0; color: var(--muted); font-size: .88rem; }
+    .pins { display: flex; gap: 8px; flex-wrap: wrap; }
+    .chip, .seg {
+      background: var(--panel-2); border: 1px solid var(--line); color: var(--muted);
+      border-radius: 999px; padding: 4px 9px; font-size: .72rem;
+    }
+    .chip strong { color: var(--text); }
+    .seg { color: var(--text); }
+    .seg.vip { color: #f5b942; }
+    .seg.at_risk { color: #f07178; }
+    .seg.returning { color: #7dd3fc; }
+    .seg.new { color: #c4b5fd; }
+    .layout { display: grid; grid-template-columns: 230px 1fr; gap: 16px; padding: 8px 20px 32px; }
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+    .pipe-switch { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-bottom: 8px; }
+    .pipe-switch button { font-size: .58rem; padding: 8px 2px; }
+    iframe.azure-frame, iframe.doc-frame {
+      width: 100%; min-height: calc(100vh - 88px); border: 0;
+      border-radius: var(--radius); background: var(--panel);
+    }
+    nav.tabs { display: grid; gap: 6px; align-content: start; }
+    nav.tabs button {
+      text-align: left; color: var(--text); background: var(--panel);
+      border: 1px solid var(--line); border-radius: 12px; padding: 9px 11px; cursor: pointer;
+    }
+    nav.tabs button:hover, nav.tabs button.active { border-color: var(--accent); }
+    nav.tabs button.active { background: #193226; }
+    nav.tabs small { display: block; color: var(--muted); font-size: .7rem; }
+    .card {
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: var(--radius); box-shadow: var(--shadow);
+    }
+    .card h2, .card h3 {
+      margin: 0; padding: 14px 16px 0; font-size: .78rem; color: var(--muted);
+      letter-spacing: .06em; text-transform: uppercase;
+    }
+    .pad { padding: 14px 16px 16px; }
+    .stack { display: grid; gap: 14px; }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 1100px) { .split { grid-template-columns: 1fr; } }
+    p.lead { margin: 0 0 12px; line-height: 1.55; color: var(--text); font-size: .95rem; }
+    p.in-short {
+      margin: 0 0 16px; line-height: 1.5; color: #d7eee3;
+      background: #193226; border: 1px solid rgba(62,207,142,.28);
+      border-radius: 12px; padding: 10px 12px; font-size: .9rem;
+    }
+    ol.process { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; }
+    ol.process li {
+      background: var(--panel-2); border: 1px solid var(--line);
+      border-radius: 12px; padding: 12px 14px;
+    }
+    ol.process .step-n {
+      display: inline-block; color: var(--accent); font-size: .72rem;
+      font-weight: 700; letter-spacing: .04em; margin-bottom: 4px;
+    }
+    ol.process strong { display: block; color: var(--text); font-size: .95rem; margin-bottom: 6px; }
+    ol.process p { margin: 0; color: var(--muted); line-height: 1.55; font-size: .9rem; }
+    .hint { color: var(--accent-2); font-size: .88rem; line-height: 1.45; }
+    form.grid { display: grid; gap: 10px; }
+    label { display: grid; gap: 5px; font-size: .78rem; color: var(--muted); }
+    input, select {
+      width: 100%; background: #11171d; border: 1px solid var(--line);
+      color: var(--text); border-radius: 10px; padding: 9px 10px;
+    }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .checks { display: flex; flex-wrap: wrap; gap: 10px; }
+    .checks label { display: flex; gap: 6px; align-items: center; color: var(--text); }
+    .checks input { width: auto; }
+    button.primary, button.refresh {
+      background: var(--accent); color: #082016; border: 0; border-radius: 10px;
+      padding: 10px 12px; font-weight: 700; cursor: pointer;
+    }
+    button.primary:disabled, button.refresh:disabled { opacity: .55; }
+    .profiles, .skus { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; padding: 14px 16px 16px; }
+    .profile, .sku {
+      background: var(--panel-2); border: 1px solid var(--line); border-radius: 14px;
+      padding: 12px; cursor: pointer; text-align: left; color: inherit; width: 100%;
+    }
+    .profile.active, .sku.active, .profile:hover, .sku:hover, .cell:hover, .cell.selected { border-color: var(--accent); }
+    .profile h3, .sku h3 { padding: 0; margin: 6px 0 4px; font-size: 1rem; color: var(--text); letter-spacing: 0; text-transform: none; }
+    .profile p, .sku p { margin: 0; color: var(--muted); font-size: .78rem; }
+    .stats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .stat { font-size: .7rem; color: var(--muted); background: #11171d; border-radius: 8px; padding: 3px 6px; }
+    .stat b { color: var(--text); }
+    .board-wrap { overflow-x: auto; padding: 8px 16px 16px; }
+    table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-size: .75rem; }
+    table.board { min-width: 760px; }
+    .cell {
+      background: #11171d; border: 1px solid var(--line); border-radius: 12px;
+      padding: 8px 9px; cursor: pointer; min-width: 112px; color: inherit; width: 100%;
+    }
+    .cell .amt { font-size: 1.05rem; font-weight: 700; }
+    .cell .off { color: var(--accent); font-size: .75rem; font-weight: 700; }
+    .cell .list { color: var(--muted); font-size: .72rem; text-decoration: line-through; }
+    .cell .why, .meta { color: var(--muted); font-size: .72rem; }
+    .empty { color: var(--muted); padding: 18px; }
+    .error { background: rgba(240,113,120,.12); border: 1px solid rgba(240,113,120,.35); color: #ffd4d6; border-radius: 12px; padding: 10px 12px; }
+    .ok { color: var(--accent); }
+    .warn { color: var(--warn); }
+    .blocked { color: var(--bad); }
+    .chosen { color: var(--accent); font-weight: 700; }
+    .mono { font-family: Consolas, "Cascadia Mono", monospace; font-size: .75rem; word-break: break-all; }
+    pre {
+      margin: 0; background: #11171d; border: 1px solid var(--line); border-radius: 12px;
+      padding: 10px; overflow: auto; max-height: 360px; font-size: .75rem;
+    }
+    .kv { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .fact { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+    .fact span { display: block; color: var(--muted); font-size: .72rem; }
+    .amount { font-size: 2.2rem; font-weight: 750; margin: 4px 0; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1>Pricing Decision Service</h1>
+      <p>Online pricing in milliseconds. Offline learning from logs on a schedule.</p>
+    </div>
+    <div class="pins" id="pins"><span class="chip">loading…</span></div>
+  </header>
+  <div class="layout">
+    <nav class="tabs" id="tabs"></nav>
+    <div id="workspace"></div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const state = {
+      pipeline: "online",
+      onlineStages: [],
+      offlineStages: [],
+      archStages: [],
+      azureStages: [],
+      projectStages: [],
+      scienceStages: [],
+      sagemakerStages: [],
+      stages: [],
+      profiles: [],
+      skus: [],
+      cells: [],
+      current: "board",
+      selected: null,
+    };
+
+    const money = (n, c = "USD") =>
+      new Intl.NumberFormat("en-US", { style: "currency", currency: c }).format(Number(n || 0));
+    const pid = (id) => id || "guest";
+    const pretty = (obj) => JSON.stringify(obj, null, 2);
+
+    const FIELDS = {
+      ingestion: ["customer", "sku", "cart", "channel", "device", "geo", "decision_id"],
+      preprocess: ["customer", "sku", "consent", "sensitivity", "fail_features"],
+      guardrails: ["customer", "sku", "min_margin", "stock", "bot_score", "consent"],
+      candidates: ["customer", "sku"],
+      causal: ["customer", "sku", "sensitivity", "reward", "fail_causal"],
+      bandit: ["customer", "sku", "mode"],
+      postprocess: ["customer", "sku", "charm", "fail_coupon"],
+      logging: ["customer", "sku"],
+      response: ["customer", "sku"],
+      fallback: ["customer", "sku", "fail_features", "fail_causal", "fail_bandit", "fail_rules", "fail_coupon"],
+      cache: [],
+      ol_overview: [],
+      ol_ingest: ["seed_n", "include_live"],
+      ol_join: ["reward_type"],
+      ol_backfill: [],
+      ol_causal: ["model_type", "min_arm_n"],
+      ol_bandit: ["ridge"],
+      ol_ope: ["estimator", "candidate"],
+      ol_registry: [],
+      ol_gate: [],
+      ol_reward: ["reward_type"],
+      ol_fairness: [],
+      ol_drift: [],
+      ol_rollout: ["rollout_action", "reward_drop"],
+    };
+
+    async function boot() {
+      const [health, meta, offline, arch, azure, project, science, sagemaker] = await Promise.all([
+        fetch("/health").then((r) => r.json()),
+        fetch("/v1/stages").then((r) => r.json()),
+        fetch("/v1/offline/stages").then((r) => r.json()),
+        fetch("/v1/architecture").then((r) => r.json()),
+        fetch("/v1/azure/stages").then((r) => r.json()),
+        fetch("/v1/project/stages").then((r) => r.ok ? r.json() : { stages: [] }),
+        fetch("/v1/science/stages").then((r) => r.ok ? r.json() : { stages: [] }),
+        fetch("/v1/sagemaker/stages").then((r) => r.ok ? r.json() : { stages: [] }),
+      ]);
+      renderPins(health.pins || {});
+      state.onlineStages = meta.stages || [];
+      state.offlineStages = offline.stages || [];
+      state.archStages = arch.stages || [];
+      state.azureStages = azure.stages || [];
+      state.projectStages = project.stages || [];
+      state.scienceStages = science.stages || [];
+      state.sagemakerStages = sagemaker.stages || [];
+      state.architecture = arch;
+      state.stages = state.onlineStages;
+      state.profiles = meta.profiles || [];
+      state.skus = meta.skus || [];
+      renderTabs();
+      await showStage(state.current);
+    }
+
+    function renderPins(pins) {
+      $("pins").innerHTML = [
+        ["policy", pins.policy_id],
+        ["causal", pins.causal_model_id],
+        ["guardrails", pins.guardrail_version],
+      ].map(([k, v]) => `<span class="chip"><strong>${k}</strong> ${v || "—"}</span>`).join("");
+    }
+
+    function stageList() {
+      if (state.pipeline === "sagemaker") return state.sagemakerStages;
+      if (state.pipeline === "science") return state.scienceStages;
+      if (state.pipeline === "project") return state.projectStages;
+      if (state.pipeline === "azure") return state.azureStages;
+      if (state.pipeline === "architecture") return state.archStages;
+      if (state.pipeline === "offline") return state.offlineStages;
+      return state.onlineStages;
+    }
+
+    function defaultStage() {
+      if (state.pipeline === "sagemaker") return "what";
+      if (state.pipeline === "science") return "different";
+      if (state.pipeline === "project") return "overview";
+      if (state.pipeline === "azure") return "kids";
+      if (state.pipeline === "architecture") return "arch_map";
+      if (state.pipeline === "offline") return "ol_overview";
+      return "board";
+    }
+
+    function renderTabs() {
+      const list = stageList();
+      state.stages = list;
+      $("tabs").innerHTML = `
+        <div class="pipe-switch">
+          <button type="button" data-pipe="project" class="${state.pipeline === "project" ? "active" : ""}">Project</button>
+          <button type="button" data-pipe="science" class="${state.pipeline === "science" ? "active" : ""}">Science</button>
+          <button type="button" data-pipe="azure" class="${state.pipeline === "azure" ? "active" : ""}">Azure</button>
+          <button type="button" data-pipe="sagemaker" class="${state.pipeline === "sagemaker" ? "active" : ""}">SageMaker</button>
+          <button type="button" data-pipe="architecture" class="${state.pipeline === "architecture" ? "active" : ""}">Architecture</button>
+          <button type="button" data-pipe="online" class="${state.pipeline === "online" ? "active" : ""}">Online PDS</button>
+          <button type="button" data-pipe="offline" class="${state.pipeline === "offline" ? "active" : ""}">Offline learning</button>
+        </div>
+        ${list.map((s) => `
+        <button type="button" data-id="${s.id}" class="${s.id === state.current ? "active" : ""}">
+          ${s.number == null ? s.title : `Stage ${s.number} · ${s.title}`}
+          <small>${s.tagline || ""}</small>
+        </button>`).join("")}`;
+    }
+
+    $("tabs").addEventListener("click", async (e) => {
+      const pipe = e.target.closest("[data-pipe]");
+      if (pipe) {
+        state.pipeline = pipe.dataset.pipe;
+        state.current = defaultStage();
+        renderTabs();
+        await showStage(state.current);
+        return;
+      }
+      const btn = e.target.closest("button[data-id]");
+      if (!btn) return;
+      await showStage(btn.dataset.id);
+    });
+
+    async function showStage(id) {
+      state.current = id;
+      document.querySelectorAll("nav.tabs button").forEach((b) => b.classList.toggle("active", b.dataset.id === id));
+      const spec = state.stages.find((s) => s.id === id);
+      if (!spec) return;
+      if (state.pipeline === "azure") {
+        $("workspace").innerHTML = `<iframe class="doc-frame" title="Azure implementation" src="/azure?embed=1#${encodeURIComponent(id)}"></iframe>`;
+        return;
+      }
+      if (state.pipeline === "project") {
+        $("workspace").innerHTML = `<iframe class="doc-frame" title="Project map" src="/project?embed=1#${encodeURIComponent(id)}"></iframe>`;
+        return;
+      }
+      if (state.pipeline === "science") {
+        $("workspace").innerHTML = `<iframe class="doc-frame" title="Decision science" src="/science?embed=1#${encodeURIComponent(id)}"></iframe>`;
+        return;
+      }
+      if (state.pipeline === "sagemaker") {
+        $("workspace").innerHTML = `<iframe class="doc-frame" title="SageMaker implementation" src="/sagemaker?embed=1#${encodeURIComponent(id)}"></iframe>`;
+        return;
+      }
+      if (id === "board") {
+        $("workspace").innerHTML = boardTemplate(spec);
+        bindBoard();
+        await loadBoard();
+        return;
+      }
+      if (id && id.startsWith("arch_")) {
+        $("workspace").innerHTML = archTemplate(spec);
+        bindArch(id);
+        return;
+      }
+      $("workspace").innerHTML = stageTemplate(spec);
+      $("run").addEventListener("click", () => runStage(id));
+      const reload = $("reloadCache");
+      if (reload) reload.addEventListener("click", reloadCache);
+      if (id !== "cache") await runStage(id);
+    }
+
+    function archTemplate(spec) {
+      const extra = spec.id === "arch_usecases"
+        ? `<section class="card"><h2>Run a use case</h2><div class="skus" id="ucList"></div><div class="pad" id="ucOut"></div></section>`
+        : spec.id === "arch_monitor"
+          ? `<section class="card"><h2>Live monitor</h2><div class="pad" id="monOut"><div class="empty">Loading…</div></div></section>`
+          : spec.id === "arch_azure"
+            ? `<section class="card"><h2>Azure runbook</h2><div class="pad"><p class="hint">Overview, diagram, tools, and CLI are under the Azure tab.</p><p><a href="/azure#picture" target="_blank" rel="noreferrer">Open Azure architecture ↗</a></p></div></section>`
+            : spec.id === "arch_layers"
+            ? `<section class="card"><h2>Also added vs a brain-only diagram</h2><div class="pad" id="addedList"></div></section>`
+            : spec.id === "arch_gaps"
+              ? `<section class="card"><h2>Control plane</h2><div class="pad" id="ctrlOut"><div class="empty">Loading…</div></div></section>`
+              : "";
+      return `<div class="stack">${explainCard(spec)}${extra}</div>`;
+    }
+
+    function bindArch(id) {
+      if (id === "arch_layers") {
+        const added = state.architecture?.added_vs_typical_brain_diagram || [];
+        $("addedList").innerHTML = `<ol class="process">${added.map((x, i) => `<li><span class="step-n">Gap ${i + 1}</span><strong>${x}</strong></li>`).join("")}</ol>`;
+      }
+      if (id === "arch_usecases") {
+        const cases = state.architecture?.use_cases || [];
+        $("ucList").innerHTML = cases.map((c) => `
+          <button type="button" class="sku" data-uc="${c.id}">
+            <span class="chip">${c.channel}</span>
+            <h3>${c.title}</h3>
+            <p>${c.trigger}</p>
+          </button>`).join("");
+        $("ucList").addEventListener("click", async (e) => {
+          const btn = e.target.closest("[data-uc]");
+          if (!btn) return;
+          $("ucOut").innerHTML = `<div class="empty">Running ${btn.dataset.uc}…</div>`;
+          const res = await fetch(`/v1/use-cases/${btn.dataset.uc}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+          const data = await res.json();
+          $("ucOut").innerHTML = res.ok
+            ? `<div class="amount">${money(data.response?.price, data.response?.currency)}</div>
+               <p>${data.use_case?.title} · ${data.segment} · ${data.arm} · propensity ${data.propensity ?? "—"}</p>
+               <pre>${pretty(data)}</pre>`
+            : `<div class="error">${pretty(data)}</div>`;
+        });
+      }
+      if (id === "arch_gaps") {
+        fetch("/v1/control").then((r) => r.json()).then((data) => {
+          $("ctrlOut").innerHTML = `
+            <div class="kv">
+              <div class="fact"><span>kill switch</span><strong>${data.kill_switch}</strong></div>
+              <div class="fact"><span>freeze</span><strong>${data.merchandiser_freeze}</strong></div>
+              <div class="fact"><span>budget left</span><strong>${data.budget_remaining}</strong></div>
+              <div class="fact"><span>force list</span><strong>${data.force_list}</strong></div>
+            </div>
+            <p class="hint">Flip the switch, then run UC1 — you should get list price. Turn it off again.</p>
+            <button class="primary" id="killOn" type="button">Enable kill switch</button>
+            <button class="refresh" id="killOff" type="button">Disable kill switch</button>
+            <pre>${pretty(data)}</pre>`;
+          $("killOn").addEventListener("click", async () => {
+            await fetch("/v1/control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kill_switch: true }) });
+            bindArch("arch_gaps");
+          });
+          $("killOff").addEventListener("click", async () => {
+            await fetch("/v1/control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kill_switch: false }) });
+            bindArch("arch_gaps");
+          });
+        });
+      }
+      if (id === "arch_monitor") {
+        fetch("/v1/monitor").then((r) => r.json()).then((data) => {
+          $("monOut").innerHTML = `
+            <div class="kv">
+              <div class="fact"><span>decisions / outcomes</span><strong>${data.lake?.decisions} / ${data.lake?.outcomes}</strong></div>
+              <div class="fact"><span>fairness gap</span><strong>${data.fairness?.price_gap ?? "—"} (ok=${data.fairness?.fairness_ok})</strong></div>
+              <div class="fact"><span>max PSI</span><strong>${data.drift?.max_psi ?? "—"} (ok=${data.drift?.drift_ok})</strong></div>
+              <div class="fact"><span>feature skew</span><strong>${data.feature_skew?.skew_ok ?? "—"}</strong></div>
+              <div class="fact"><span>kill switch</span><strong>${data.control?.kill_switch}</strong></div>
+              <div class="fact"><span>budget left</span><strong>${data.control?.budget_remaining ?? "—"}</strong></div>
+              <div class="fact"><span>rollout</span><strong>${data.rollout?.stage || "none"}</strong></div>
+            </div>
+            <p class="meta">NFRs</p><pre>${pretty(data.nfrs || {})}</pre>
+            <p class="meta">Control plane</p><pre>${pretty(data.control || {})}</pre>
+            <p class="meta">Feature skew</p><pre>${pretty(data.feature_skew || {})}</pre>
+            <p class="meta">Fairness</p><pre>${pretty(data.fairness || {})}</pre>
+            <p class="meta">Drift</p><pre>${pretty(data.drift || {})}</pre>`;
+        });
+      }
+    }
+
+    function boardTemplate(spec) {
+      return `
+        <div class="stack">
+          ${explainCard(spec)}
+          <section class="card"><h2>Customer profiles</h2><div class="profiles" id="profiles"></div></section>
+          <section class="card"><h2>SKU catalog</h2><div class="skus" id="skus"></div></section>
+          <section class="card">
+            <h2>Context-based prices</h2>
+            <div class="pad" style="padding-bottom:0"><p class="hint">${spec.try}</p></div>
+            <div class="board-wrap" id="board"><div class="empty">Scoring…</div></div>
+          </section>
+          <section class="card split">
+            <div class="pad" id="offer"><div class="empty">Click a price cell.</div></div>
+            <div class="pad" id="arms"><div class="empty">Arms appear here.</div></div>
+          </section>
+        </div>`;
+    }
+
+    function stageTemplate(spec) {
+      const fields = FIELDS[spec.id] || [];
+      return `
+        <div class="stack">
+          ${explainCard(spec)}
+          <div class="split">
+            <section class="card">
+              <h2>Try this stage</h2>
+              <div class="pad">
+                <form class="grid" id="stageForm" onsubmit="return false;">
+                  ${renderFields(fields)}
+                  <p class="hint">${spec.try}</p>
+                  <button class="primary" id="run" type="button">${spec.id === "cache" ? "Show pins" : "Run stage"}</button>
+                  ${spec.id === "cache" ? `<button class="refresh" id="reloadCache" type="button">Reload configs</button>` : ""}
+                </form>
+              </div>
+            </section>
+            <section class="card">
+              <h2>Live output</h2>
+              <div class="pad" id="stageOut"><div class="empty">Run the stage to see outputs.</div></div>
+            </section>
+          </div>
+        </div>`;
+    }
+
+    function explainCard(spec) {
+      const steps = (spec.process || []).map((step, i) => {
+        if (typeof step === "string") {
+          return `<li><span class="step-n">Step ${i + 1}</span><strong>${step}</strong></li>`;
+        }
+        return `<li>
+          <span class="step-n">Step ${i + 1}</span>
+          <strong>${step.title || ""}</strong>
+          <p>${step.detail || ""}</p>
+        </li>`;
+      }).join("");
+      return `
+        <section class="card">
+          <h2>${spec.number == null ? spec.title : `Stage ${spec.number} — ${spec.title}`}</h2>
+          <div class="pad">
+            <p class="lead">${spec.about || ""}</p>
+            ${spec.in_short ? `<p class="in-short"><strong>In short.</strong> ${spec.in_short}</p>` : ""}
+            <h3 style="padding-left:0">What happens, step by step</h3>
+            <ol class="process">${steps}</ol>
+          </div>
+        </section>`;
+    }
+
+    function renderFields(fields) {
+      const profileOpts = state.profiles.map((p) =>
+        `<option value="${pid(p.customer_id)}" ${p.customer_id === "c_maya" ? "selected" : ""}>${p.display_name} — ${p.persona}</option>`
+      ).join("");
+      const skuOpts = state.skus.map((s, i) =>
+        `<option value="${s.sku}" ${i === 0 ? "selected" : ""}>${s.name} (${s.sku}) · ${money(s.list_price)}</option>`
+      ).join("");
+      const map = {
+        customer: `<label>Customer profile<select id="f_customer">${profileOpts}</select></label>`,
+        sku: `<label>SKU<select id="f_sku">${skuOpts}</select></label>`,
+        cart: `<label>Cart value<input id="f_cart" type="number" min="0" step="0.01" value="50"></label>`,
+        channel: `<label>Channel<select id="f_channel"><option>web</option><option>app</option><option>store</option></select></label>`,
+        device: `<label>Device<select id="f_device"><option>mobile</option><option>desktop</option><option>tablet</option></select></label>`,
+        geo: `<label>Geo<input id="f_geo" value="CA-ON"></label>`,
+        decision_id: `<label>decision_id (optional, replay for idempotency)<input id="f_decision_id" placeholder="leave blank for a new id"></label>`,
+        consent: `<label>Consent override<select id="f_consent"><option value="">use profile</option><option value="true">force on</option><option value="false">force off</option></select></label>`,
+        sensitivity: `<label>Price sensitivity (0–1)<input id="f_sensitivity" type="number" min="0" max="1" step="0.05" placeholder="leave blank to keep profile"></label>`,
+        min_margin: `<label>Min margin<input id="f_min_margin" type="number" min="0" max="0.9" step="0.01" value="0.15"></label>`,
+        stock: `<label>Stock override<input id="f_stock" type="number" min="0" step="1" placeholder="use SKU stock"></label>`,
+        bot_score: `<label>Bot score<input id="f_bot_score" type="number" min="0" max="1" step="0.05" placeholder="use profile"></label>`,
+        reward: `<label>Reward definition<select id="f_reward"><option value="">pinned (margin)</option><option value="margin">margin</option><option value="revenue">revenue</option><option value="ltv">ltv</option><option value="composite">composite</option></select></label>`,
+        mode: `<label>Bandit mode<select id="f_mode"><option value="live">live (Thompson + ε)</option><option value="exploit">exploit (argmax μ)</option></select></label>`,
+        charm: `<div class="checks"><label><input id="f_charm" type="checkbox" checked> Charm pricing (.99)</label></div>`,
+        fail_features: `<div class="checks"><label><input id="f_fail_features" type="checkbox"> Feature store down</label></div>`,
+        fail_causal: `<div class="checks"><label><input id="f_fail_causal" type="checkbox"> Causal timeout</label></div>`,
+        fail_bandit: `<div class="checks"><label><input id="f_fail_bandit" type="checkbox"> Bandit error</label></div>`,
+        fail_rules: `<div class="checks"><label><input id="f_fail_rules" type="checkbox"> Rule service down + no cache</label></div>`,
+        fail_coupon: `<div class="checks"><label><input id="f_fail_coupon" type="checkbox"> Coupon service down</label></div>`,
+        seed_n: `<label>Seed synthetic decisions<input id="f_seed_n" type="number" min="0" step="10" value="80"></label>`,
+        include_live: `<div class="checks"><label><input id="f_include_live" type="checkbox" checked> Also ingest live PDS logs</label></div>`,
+        reward_type: `<label>Reward definition<select id="f_reward_type"><option value="margin">margin</option><option value="revenue">revenue</option><option value="ltv_proxy">ltv_proxy</option><option value="composite">composite</option></select></label>`,
+        model_type: `<label>Causal model<select id="f_model_type"><option value="dr_learner">DR-learner (default)</option><option value="s_learner">S-learner</option></select></label>`,
+        min_arm_n: `<label>Min samples per arm<input id="f_min_arm_n" type="number" min="1" value="5"></label>`,
+        ridge: `<label>Ridge λ<input id="f_ridge" type="number" min="0.01" step="0.1" value="1"></label>`,
+        estimator: `<label>OPE estimator<select id="f_estimator"><option value="dr">DR (default)</option><option value="ips">IPS</option><option value="snips">SNIPS</option><option value="dm">DM</option></select></label>`,
+        candidate: `<label>Candidate policy<select id="f_candidate"><option value="exploit">exploit (new model)</option><option value="egreedy">ε-greedy</option><option value="logging">logging (current)</option></select></label>`,
+        rollout_action: `<label>Rollout action<select id="f_rollout_action"><option value="advance">advance one step</option><option value="rollback">rollback</option></select></label>`,
+        reward_drop: `<label>Simulated reward drop<input id="f_reward_drop" type="number" min="0" max="1" step="0.01" value="0"></label>`,
+      };
+      const groups = [];
+      const pair = ["customer", "sku", "cart", "channel", "device", "geo", "min_margin", "stock", "bot_score", "consent", "sensitivity", "reward", "mode", "model_type", "min_arm_n", "estimator", "candidate"];
+      let i = 0;
+      while (i < fields.length) {
+        const a = fields[i];
+        const b = fields[i + 1];
+        if (pair.includes(a) && pair.includes(b)) {
+          groups.push(`<div class="row">${map[a] || ""}${map[b] || ""}</div>`);
+          i += 2;
+        } else {
+          groups.push(map[a] || "");
+          i += 1;
+        }
+      }
+      return groups.join("");
+    }
+
+    function val(id) {
+      const el = $(id);
+      return el ? el.value : "";
+    }
+    function checked(id) {
+      const el = $(id);
+      return !!(el && el.checked);
+    }
+
+    function requestFromForm() {
+      const customer = val("f_customer");
+      const sku = val("f_sku") || "SKU-1234";
+      const item = state.skus.find((s) => s.sku === sku);
+      const profile = state.profiles.find((p) => pid(p.customer_id) === customer);
+      const payload = {
+        customer_id: customer === "guest" ? null : (customer || null),
+        session_id: "stage-lab",
+        sku,
+        cart_value: val("f_cart") === "" ? (item ? item.list_price : 50) : Number(val("f_cart")),
+        channel: val("f_channel") || "web",
+        device: val("f_device") || "mobile",
+        geo: val("f_geo") || profile?.geo_band || "CA-ON",
+        mode: val("f_mode") || "exploit",
+      };
+      if (val("f_decision_id")) payload.decision_id = val("f_decision_id");
+      return payload;
+    }
+
+    function overridesFromForm() {
+      const o = {};
+      if (val("f_consent") !== "" && $("f_consent")) o.consent = val("f_consent") === "true";
+      if (val("f_min_margin") !== "" && $("f_min_margin")) o.min_margin = Number(val("f_min_margin"));
+      if (val("f_stock") !== "" && $("f_stock")) o.stock = Number(val("f_stock"));
+      if (val("f_bot_score") !== "" && $("f_bot_score")) o.bot_score = Number(val("f_bot_score"));
+      if (val("f_sensitivity") !== "" && $("f_sensitivity")) o.features = { price_sensitivity_score: Number(val("f_sensitivity")) };
+      if (val("f_reward") && $("f_reward")) o.reward = val("f_reward");
+      if ($("f_charm")) o.charm = checked("f_charm");
+      ["fail_features", "fail_causal", "fail_bandit", "fail_rules", "fail_coupon"].forEach((k) => {
+        if ($(`f_${k}`)) o[k] = checked(`f_${k}`);
+      });
+      return o;
+    }
+
+    function offlineOverrides() {
+      const o = {};
+      if ($("f_seed_n")) o.seed_n = Number(val("f_seed_n") || 0);
+      if ($("f_include_live")) o.include_live_logs = checked("f_include_live");
+      if ($("f_reward_type")) o.reward_type = val("f_reward_type");
+      if ($("f_model_type")) o.model_type = val("f_model_type");
+      if ($("f_min_arm_n")) o.min_arm_n = Number(val("f_min_arm_n") || 5);
+      if ($("f_ridge")) o.ridge = Number(val("f_ridge") || 1);
+      if ($("f_estimator")) o.estimator = val("f_estimator");
+      if ($("f_candidate")) o.candidate = val("f_candidate");
+      if ($("f_rollout_action")) o.action = val("f_rollout_action");
+      if ($("f_reward_drop")) o.reward_drop = Number(val("f_reward_drop") || 0);
+      return o;
+    }
+
+    async function runStage(stage) {
+      const out = $("stageOut");
+      out.innerHTML = `<div class="empty">Running ${stage}…</div>`;
+      try {
+        const offline = stage.startsWith("ol_");
+        const res = await fetch(offline ? "/v1/offline/run" : "/v1/stages/run", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(offline
+            ? { stage, overrides: offlineOverrides() }
+            : { stage, request: requestFromForm(), overrides: overridesFromForm() }),
+        });
+        const data = await res.json();
+        out.innerHTML = offline ? renderOfflineOutput(stage, data) : renderStageOutput(stage, data);
+        if (data.decision_id && $("f_decision_id") && !$("f_decision_id").value) {
+          $("f_decision_id").placeholder = data.decision_id;
+        }
+      } catch (err) {
+        out.innerHTML = `<div class="error">${err.message}</div>`;
+      }
+    }
+
+    async function reloadCache() {
+      const data = await (await fetch("/v1/stages/reload", { method: "POST" })).json();
+      renderPins(data.pins || {});
+      $("stageOut").innerHTML = `
+        <p class="ok">Configs reloaded.</p>
+        <div class="kv">${Object.entries(data.pins || {}).map(([k, v]) => `<div class="fact"><span>${k}</span><strong>${v}</strong></div>`).join("")}</div>
+      `;
+    }
+
+    function renderOfflineOutput(stage, data) {
+      if (data.ok === false) {
+        return `<div class="error">${data.reason || data.blocked_on || "failed"} — ${pretty(data)}</div>`;
+      }
+      if (stage === "ol_overview") {
+        return `<div class="kv">
+          <div class="fact"><span>decisions in lake</span><strong>${data.decisions}</strong></div>
+          <div class="fact"><span>outcomes</span><strong>${data.outcomes}</strong></div>
+          <div class="fact"><span>labeled rows</span><strong>${data.training}</strong></div>
+          <div class="fact"><span>point-in-time rows</span><strong>${data.backfill}</strong></div>
+        </div>
+        <p class="meta">Latest OPE</p>
+        <pre>${pretty(data.ope || {})}</pre>
+        <p class="meta">Registry</p>
+        <pre>${pretty(data.registry || {})}</pre>`;
+      }
+      if (stage === "ol_ingest") {
+        return `<div class="kv">
+          <div class="fact"><span>decisions</span><strong>${data.decisions}</strong></div>
+          <div class="fact"><span>outcomes</span><strong>${data.outcomes}</strong></div>
+        </div>
+        <p class="meta">Seed</p><pre>${pretty(data.seed || {})}</pre>
+        <p class="meta">Live logs</p><pre>${pretty(data.live_logs || {})}</pre>`;
+      }
+      if (stage === "ol_join") {
+        return `<div class="kv">
+          <div class="fact"><span>match rate</span><strong>${data.join_match_rate}</strong></div>
+          <div class="fact"><span>missing outcomes</span><strong>${data.join_missing_outcome_rate}</strong></div>
+          <div class="fact"><span>censored</span><strong>${data.label_censored_rate}</strong></div>
+          <div class="fact"><span>reward</span><strong>${data.reward_type}</strong></div>
+        </div>
+        <p class="meta">Sample labeled rows</p><pre>${pretty(data.sample || [])}</pre>`;
+      }
+      if (stage === "ol_backfill") {
+        return `<div class="kv">
+          <div class="fact"><span>rows</span><strong>${data.n_rows}</strong></div>
+          <div class="fact"><span>leakage flags</span><strong>${data.backfill_leakage_detected_total}</strong></div>
+          <div class="fact"><span>missing rate</span><strong>${data.backfill_missing_rate}</strong></div>
+        </div>
+        <pre>${pretty({ feature_names: data.feature_names, sample: data.sample })}</pre>`;
+      }
+      if (stage === "ol_causal") {
+        return `<div class="kv">
+          <div class="fact"><span>model</span><strong>${data.model_id} · ${data.type}</strong></div>
+          <div class="fact"><span>samples</span><strong>${data.n_samples}</strong></div>
+          <div class="fact"><span>R²</span><strong>${data.metrics?.r2_reward}</strong></div>
+          <div class="fact"><span>mean τ</span><strong>${data.metrics?.tau_mean}</strong></div>
+        </div>
+        <p class="meta">Uplift vs list price by arm</p><pre>${pretty(data.tau || {})}</pre>
+        <pre>${pretty(data.n_samples_per_arm || {})}</pre>`;
+      }
+      if (stage === "ol_bandit") {
+        return `<div class="kv">
+          <div class="fact"><span>bandit</span><strong>${data.bandit_id}</strong></div>
+          <div class="fact"><span>updates</span><strong>${data.n_updates}</strong></div>
+        </div>
+        <p class="meta">Effective sample size</p><pre>${pretty(data.effective_sample_size || {})}</pre>
+        <p class="meta">θ norm</p><pre>${pretty(data.theta_norm || {})}</pre>`;
+      }
+      if (stage === "ol_ope") {
+        const pass = data.diagnostics_pass ? "ok" : "warn";
+        return `<div class="kv">
+          <div class="fact"><span>estimator / policy</span><strong>${data.estimator} · ${data.candidate}</strong></div>
+          <div class="fact"><span>estimated value</span><strong>${data.value}</strong></div>
+          <div class="fact"><span>vs current</span><strong>${data.vs_current} (${data.vs_current_pct}%)</strong></div>
+          <div class="fact"><span>95% CI</span><strong>${(data.ci_95 || []).join(" … ")}</strong></div>
+          <div class="fact"><span>ESS ratio</span><strong>${data.ess_ratio}</strong></div>
+          <div class="fact"><span>diagnostics</span><strong class="${pass}">${data.diagnostics_pass ? "pass" : "fail"}</strong></div>
+        </div>
+        <pre>${pretty(data.diagnostics || {})}</pre>`;
+      }
+      if (stage === "ol_registry") {
+        return `<p class="ok">Registered ${data.registered?.model_id || ""} as ${data.registered?.stage || ""}.</p>
+          <pre>${pretty(data.registered || data)}</pre>`;
+      }
+      if (stage === "ol_reward" || stage === "ol_fairness" || stage === "ol_drift" || stage === "ol_rollout") {
+        return `<pre>${pretty(data)}</pre>`;
+      }
+      if (stage === "ol_gate") {
+        return `<p class="${data.can_deploy ? "ok" : "warn"}">${data.decision}</p>
+          <div class="kv">${Object.entries(data.checks || {}).map(([k, v]) => `<div class="fact"><span>${k}</span><strong class="${v ? "ok" : "blocked"}">${v}</strong></div>`).join("")}</div>
+          <p class="meta">Rollout ladder if promoted</p>
+          <pre>${pretty(data.rollout_ladder || [])}</pre>`;
+      }
+      return `<pre>${pretty(data)}</pre>`;
+    }
+
+    function renderStageOutput(stage, data) {
+      if (!data.ok) {
+        const e = data.error || {};
+        return `<div class="error">${e.status_code || ""} ${e.reason || "error"} — ${e.message || ""}</div>`;
+      }
+      if (stage === "ingestion") return ingestView(data);
+      if (stage === "preprocess") return preprocessView(data);
+      if (stage === "guardrails") return guardView(data);
+      if (stage === "candidates") return armsView(data, "Candidate arms after guardrails");
+      if (stage === "causal") return causalView(data);
+      if (stage === "bandit") return banditView(data);
+      if (stage === "postprocess") return offerView(data);
+      if (stage === "logging") return logView(data);
+      if (stage === "response") return responseView(data);
+      if (stage === "fallback") return fallbackView(data);
+      if (stage === "cache") {
+        return `<div class="kv">${Object.entries(data.pins || {}).map(([k, v]) => `<div class="fact"><span>${k}</span><strong>${v}</strong></div>`).join("")}</div>`;
+      }
+      return `<pre>${pretty(data)}</pre>`;
+    }
+
+    function ingestView(data) {
+      return `
+        <div class="kv">
+          <div class="fact"><span>decision_id</span><strong class="mono">${data.decision_id}</strong></div>
+          <div class="fact"><span>segment</span><strong>${data.segment}</strong></div>
+          <div class="fact"><span>SKU</span><strong>${data.catalog?.name || data.request?.sku} · ${money(data.catalog?.list_price)}</strong></div>
+          <div class="fact"><span>idempotent hit</span><strong>${data.idempotent_hit ? "yes — cached" : "no — new decision"}</strong></div>
+        </div>
+        <p class="meta">Pinned versions</p>
+        <div class="kv">${Object.entries(data.versions || {}).map(([k, v]) => `<div class="fact"><span>${k}</span><strong>${v}</strong></div>`).join("")}</div>
+      `;
+    }
+
+    function preprocessView(data) {
+      const f = data.features || {};
+      const raw = f.x_raw || {};
+      return `
+        <div class="kv">
+          <div class="fact"><span>consent</span><strong>${f.consent ? "on — personalized x" : "off — generic x"}</strong></div>
+          <div class="fact"><span>segment</span><strong>${f.segment}</strong></div>
+          <div class="fact"><span>vector length</span><strong>${(f.x || []).length}</strong></div>
+          <div class="fact"><span>x_hash</span><strong class="mono">${f.x_hash}</strong></div>
+        </div>
+        <p class="meta">x_raw (human-readable context)</p>
+        <table><thead><tr><th>Feature</th><th>Value</th><th>Missing</th><th>Fresh</th></tr></thead>
+        <tbody>${Object.keys(raw).map((k) => `<tr><td>${k}</td><td>${raw[k]}</td><td>${f.missing_flags?.[k] ? "yes" : ""}</td><td>${f.freshness_flags?.[k] === false ? "stale" : ""}</td></tr>`).join("")}</tbody></table>
+        ${data.degraded ? `<div class="error">Degraded: ${data.degraded_reasons.join(", ")}</div>` : ""}
+      `;
+    }
+
+    function guardView(data) {
+      const g = data.guardrails || {};
+      const blocked = (g.blocked_arms || []).map((b) => `<tr><td class="blocked">${b.arm}</td><td class="blocked">${b.reason}</td></tr>`).join("");
+      return `
+        <p>Allowed: <strong class="ok">${(g.allowed_arms || []).join(", ") || "—"}</strong></p>
+        <table><thead><tr><th>Blocked arm</th><th>Reason</th></tr></thead>
+        <tbody>${blocked || `<tr><td colspan="2">None blocked</td></tr>`}</tbody></table>
+        <p class="meta">Constraint vector</p>
+        <pre>${pretty(g.constraint_vector || {})}</pre>
+      `;
+    }
+
+    function armsView(data, title) {
+      const rows = (data.arms || []).map((a) =>
+        `<tr><td>${a.id}</td><td>${money(a.price)}</td><td>${Math.round(a.discount * 100)}%</td><td>${a.margin == null ? "—" : (a.margin * 100).toFixed(1) + "%"}</td></tr>`
+      ).join("");
+      return `<p>${title}</p><table><thead><tr><th>Arm</th><th>Price</th><th>Off</th><th>Margin</th></tr></thead><tbody>${rows}</tbody></table>`;
+    }
+
+    function causalView(data) {
+      const scores = Object.fromEntries((data.scores || []).map((s) => [s.arm_id, s]));
+      const rows = (data.arms || []).map((a) => {
+        const s = scores[a.id] || {};
+        return `<tr><td>${a.id}</td><td>${money(a.price)}</td><td>${s.mu ?? "—"}</td><td>${s.sigma ?? "—"}</td><td>${s.uplift_vs_baseline ?? "—"}</td><td>${s.percentile_10 ?? "—"} / ${s.percentile_90 ?? "—"}</td></tr>`;
+      }).join("");
+      return `
+        ${data.degraded ? `<div class="error">Degraded: ${data.degraded_reasons.join(", ")}</div>` : `<p>Reward is expected ${data.versions?.reward_definition || "margin"}.</p>`}
+        <table><thead><tr><th>Arm</th><th>Price</th><th>μ</th><th>σ</th><th>Uplift</th><th>p10 / p90</th></tr></thead><tbody>${rows}</tbody></table>
+      `;
+    }
+
+    function banditView(data) {
+      const b = data.bandit || {};
+      return `
+        <div class="kv">
+          <div class="fact"><span>chosen arm</span><strong>${b.chosen_arm}</strong></div>
+          <div class="fact"><span>propensity</span><strong>${b.propensity}</strong></div>
+          <div class="fact"><span>exploration</span><strong class="${b.exploration_flag ? "warn" : "ok"}">${b.exploration_flag ? "exploration draw" : "exploitation"}</strong></div>
+          <div class="fact"><span>mode</span><strong>${data.request?.mode || "live"}</strong></div>
+        </div>
+        ${causalView(data)}
+        <p class="meta">Sampled scores this draw</p>
+        <pre>${pretty(b.sampled_scores || {})}</pre>
+      `;
+    }
+
+    function offerView(data) {
+      const o = data.offer || {};
+      return `
+        <div class="amount">${money(o.price, o.currency)}</div>
+        <p>${o.badge || (o.discount_pct ? o.discount_pct + "% off" : "List price")} · coupon ${o.coupon_code || "none"}</p>
+        <div class="kv">
+          <div class="fact"><span>expires</span><strong>${o.expires_at ? new Date(o.expires_at).toLocaleString() : "—"}</strong></div>
+          <div class="fact"><span>CTA</span><strong>${o.cta || "—"}</strong></div>
+        </div>
+        ${data.degraded ? `<div class="error">Degraded: ${data.degraded_reasons.join(", ")}</div>` : ""}
+        <p>${(o.reason_codes || []).map((x) => `<span class="chip">${x}</span>`).join(" ")}</p>
+      `;
+    }
+
+    function logView(data) {
+      const exp = data.experience || {};
+      return `
+        <div class="kv">
+          <div class="fact"><span>propensity</span><strong>${exp.propensity}</strong></div>
+          <div class="fact"><span>exclude from training</span><strong>${exp.exclude_from_training ? "yes" : "no"}</strong></div>
+          <div class="fact"><span>chosen / candidates</span><strong>${exp.chosen_arm} · ${(exp.candidate_arms || []).join(", ")}</strong></div>
+          <div class="fact"><span>latency</span><strong>${exp.latency_ms} ms</strong></div>
+        </div>
+        <p class="meta">Full experience tuple (OPE / audit)</p>
+        <pre>${pretty(exp)}</pre>
+      `;
+    }
+
+    function responseView(data) {
+      return `
+        <div class="split">
+          <div>
+            <p class="ok">Client response — safe to send</p>
+            <pre>${pretty(data.response || {})}</pre>
+          </div>
+          <div>
+            <p class="warn">Internal only — never expose</p>
+            <pre>${pretty({ bandit: data.bandit, scores: data.scores, versions: data.versions })}</pre>
+          </div>
+        </div>
+      `;
+    }
+
+    function fallbackView(data) {
+      return `
+        ${data.degraded ? `<div class="error">Degraded: ${(data.degraded_reasons || []).join(", ")}</div>` : `<p class="ok">Full pipeline — no fallback used.</p>`}
+        ${offerView(data)}
+        <p class="meta">Fallback still produced a price so checkout can continue.</p>
+      `;
+    }
+
+    function bindBoard() {
+      $("profiles").addEventListener("click", async (e) => {
+        const btn = e.target.closest(".profile");
+        if (!btn) return;
+        state.selected = { customer_id: btn.dataset.customer === "guest" ? null : btn.dataset.customer, sku: state.selected?.sku || state.skus[0]?.sku };
+        renderProfiles(); renderSkus(); renderBoard();
+        await explain(pid(state.selected.customer_id), state.selected.sku);
+      });
+      $("skus").addEventListener("click", async (e) => {
+        const btn = e.target.closest(".sku");
+        if (!btn) return;
+        state.selected = { customer_id: state.selected?.customer_id ?? state.profiles[0]?.customer_id, sku: btn.dataset.sku };
+        renderProfiles(); renderSkus(); renderBoard();
+        await explain(pid(state.selected.customer_id), state.selected.sku);
+      });
+      $("board").addEventListener("click", async (e) => {
+        const btn = e.target.closest(".cell");
+        if (!btn) return;
+        state.selected = { customer_id: btn.dataset.customer === "guest" ? null : btn.dataset.customer, sku: btn.dataset.sku };
+        renderProfiles(); renderSkus(); renderBoard();
+        await explain(btn.dataset.customer, btn.dataset.sku);
+      });
+    }
+
+    function featureBits(p) {
+      const f = p.features || {};
+      return [["sens", f.price_sensitivity_score], ["churn", f.churn_risk], ["LTV", f.ltv_predicted], ["orders", f.orders_lifetime]]
+        .filter(([, v]) => v != null)
+        .map(([k, v]) => `<span class="stat">${k} <b>${v}</b></span>`).join("");
+    }
+
+    function renderProfiles() {
+      $("profiles").innerHTML = state.profiles.map((p) => `
+        <button type="button" class="profile${pid(state.selected?.customer_id) === pid(p.customer_id) ? " active" : ""}" data-customer="${pid(p.customer_id)}">
+          <span class="seg ${p.segment}">${p.persona}</span>
+          <h3>${p.display_name}</h3>
+          <p>${p.headline}</p>
+          <div class="stats">
+            <span class="stat">consent <b>${p.consent_personalization ? "on" : "off"}</b></span>
+            ${featureBits(p)}
+          </div>
+        </button>`).join("");
+    }
+
+    function renderSkus() {
+      $("skus").innerHTML = state.skus.map((s) => `
+        <button type="button" class="sku${state.selected?.sku === s.sku ? " active" : ""}" data-sku="${s.sku}">
+          <span class="chip">${s.sku}</span>
+          <h3>${s.name}</h3>
+          <p>${s.category} · list ${money(s.list_price)} · stock ${s.stock}${s.discountable ? "" : " · locked"}</p>
+        </button>`).join("");
+    }
+
+    function findCell(customerId, sku) {
+      return state.cells.find((c) => pid(c.customer_id) === pid(customerId) && c.sku === sku);
+    }
+
+    function renderBoard() {
+      const head = `<tr><th>Profile</th>${state.skus.map((s) => `<th>${s.name}<br><span class="chip">${s.sku}</span></th>`).join("")}</tr>`;
+      const body = state.profiles.map((p) => {
+        const cells = state.skus.map((s) => {
+          const cell = findCell(p.customer_id, s.sku);
+          if (!cell) return `<td>—</td>`;
+          const selected = pid(state.selected?.customer_id) === pid(p.customer_id) && state.selected?.sku === s.sku;
+          return `<td><button type="button" class="cell${selected ? " selected" : ""}" data-customer="${pid(p.customer_id)}" data-sku="${s.sku}">
+            <div class="amt">${money(cell.price)}</div>
+            ${cell.discount_pct ? `<div class="off">${cell.discount_pct}% off</div><div class="list">${money(cell.list_price)}</div>` : `<div class="why">list price</div>`}
+            <div class="why">${cell.arm}</div>
+          </button></td>`;
+        }).join("");
+        return `<tr><td><strong>${p.display_name}</strong><div class="meta">${p.persona}</div></td>${cells}</tr>`;
+      }).join("");
+      $("board").innerHTML = `<table class="board"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+    }
+
+    async function loadBoard() {
+      const data = await (await fetch("/v1/price-board")).json();
+      state.profiles = data.profiles || state.profiles;
+      state.skus = data.skus || state.skus;
+      state.cells = data.cells || [];
+      if (!state.selected && state.profiles.length) {
+        state.selected = { customer_id: state.profiles[0].customer_id, sku: state.skus[0].sku };
+      }
+      renderProfiles(); renderSkus(); renderBoard();
+      if (state.selected) await explain(pid(state.selected.customer_id), state.selected.sku);
+    }
+
+    async function explain(customerId, sku) {
+      const profile = state.profiles.find((p) => pid(p.customer_id) === pid(customerId));
+      const item = state.skus.find((s) => s.sku === sku);
+      const res = await fetch("/v1/price:explain", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customer_id: customerId === "guest" ? null : customerId,
+          sku,
+          cart_value: item?.list_price,
+          channel: "web",
+          device: "mobile",
+          geo: profile?.geo_band || "CA",
+          mode: "exploit",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        $("offer").innerHTML = `<div class="error">${data.detail?.message || "error"}</div>`;
+        return;
+      }
+      const r = data.response;
+      $("offer").innerHTML = `
+        <div class="chip">${profile?.display_name || customerId} · ${item?.name || sku}</div>
+        <div class="amount">${money(r.price, r.currency)}</div>
+        <p>${r.badge || "List price"} · ${data.bandit?.chosen_arm || ""}</p>
+        <p>${(r.reason_codes || []).map((x) => `<span class="chip">${x}</span>`).join(" ")}</p>
+      `;
+      const scores = Object.fromEntries((data.scores || []).map((s) => [s.arm_id, s]));
+      $("arms").innerHTML = `<table><thead><tr><th>Arm</th><th>Price</th><th>μ</th><th>σ</th></tr></thead><tbody>
+        ${(data.arms || []).map((a) => {
+          const s = scores[a.id] || {};
+          const mark = a.id === data.bandit?.chosen_arm ? "chosen" : "";
+          return `<tr class="${mark}"><td>${a.id}${mark ? " ←" : ""}</td><td>${money(a.price)}</td><td>${s.mu ?? "—"}</td><td>${s.sigma ?? "—"}</td></tr>`;
+        }).join("")}
+      </tbody></table>`;
+    }
+
+    boot().catch((err) => { $("workspace").innerHTML = `<div class="error">${err.message}</div>`; });
+  </script>
+</body>
+</html>

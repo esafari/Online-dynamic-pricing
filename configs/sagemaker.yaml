@@ -1,0 +1,45 @@
+- id: what
+  title: What SageMaker is here
+  tagline: Night shift only — not checkout
+- id: map
+  title: Local job → SageMaker
+  tagline: Same OfflinePipeline, hosted
+- id: prep
+  title: 1. Laptop and account
+  tagline: CLI, region, prove pytest
+- id: bucket
+  title: 2. S3 lake
+  tagline: bronze / silver / gold in Canada
+- id: role
+  title: 3. IAM role
+  tagline: The job assumes this, not a key
+- id: image
+  title: 4. Training image
+  tagline: Same Dockerfile, pushed to ECR
+- id: upload
+  title: 5. Upload the lake
+  tagline: Seed or live JSONL onto S3
+- id: jobs
+  title: 6. Processing jobs
+  tagline: ingest, join, backfill
+- id: train
+  title: 7. Train causal and bandit
+  tagline: SageMaker Training jobs
+- id: ope
+  title: 8. OPE, fairness, drift
+  tagline: Prove the challenger
+- id: registry
+  title: 9. Registry and gate
+  tagline: Register only if DR wins
+- id: pipeline
+  title: 10. SageMaker Pipeline
+  tagline: One DAG, nightly
+- id: pins
+  title: 11. Back to FastAPI
+  tagline: Pins, not a SageMaker endpoint
+- id: verify
+  title: 12. Verify
+  tagline: What done looks like
+- id: pitfalls
+  title: What not to do
+  tagline: Endpoints, US regions, future features

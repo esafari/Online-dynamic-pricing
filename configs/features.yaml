@@ -1,0 +1,110 @@
+numeric:
+  - sessions_7d
+  - pageviews_7d
+  - cart_abandons_30d
+  - orders_lifetime
+  - aov_lifetime
+  - recency_days
+  - discount_uses_30d
+  - price_sensitivity_score
+  - churn_risk
+  - ltv_predicted
+  - cart_value
+categorical:
+  - segment
+  - acquisition_channel
+  - geo_band
+  - age_band
+  - channel
+  - device
+defaults:
+  global:
+    sessions_7d: 0
+    pageviews_7d: 0
+    cart_abandons_30d: 0
+    orders_lifetime: 0
+    aov_lifetime: 0.0
+    recency_days: 365
+    discount_uses_30d: 0
+    price_sensitivity_score: 0.5
+    churn_risk: 0.2
+    ltv_predicted: 50.0
+    segment: guest
+    acquisition_channel: unknown
+    geo_band: CA
+    age_band: unknown
+  segments:
+    guest:
+      price_sensitivity_score: 0.55
+      ltv_predicted: 40.0
+    new:
+      price_sensitivity_score: 0.60
+      ltv_predicted: 80.0
+    returning:
+      price_sensitivity_score: 0.50
+      ltv_predicted: 180.0
+    vip:
+      price_sensitivity_score: 0.25
+      ltv_predicted: 620.0
+    at_risk:
+      price_sensitivity_score: 0.75
+      ltv_predicted: 90.0
+ttl_seconds:
+  sessions_7d: 3600
+  pageviews_7d: 3600
+  cart_abandons_30d: 86400
+  orders_lifetime: 86400
+  aov_lifetime: 86400
+  recency_days: 86400
+  discount_uses_30d: 3600
+  price_sensitivity_score: 86400
+  churn_risk: 86400
+  ltv_predicted: 86400
+clip:
+  sessions_7d: [0, 200]
+  pageviews_7d: [0, 2000]
+  cart_abandons_30d: [0, 50]
+  orders_lifetime: [0, 500]
+  aov_lifetime: [0, 5000]
+  recency_days: [0, 3650]
+  discount_uses_30d: [0, 30]
+  price_sensitivity_score: [0, 1]
+  churn_risk: [0, 1]
+  ltv_predicted: [0, 20000]
+  cart_value: [0, 100000]
+means:
+  sessions_7d: 4.0
+  pageviews_7d: 30.0
+  cart_abandons_30d: 1.0
+  orders_lifetime: 3.0
+  aov_lifetime: 55.0
+  recency_days: 40.0
+  discount_uses_30d: 0.4
+  price_sensitivity_score: 0.5
+  churn_risk: 0.2
+  ltv_predicted: 180.0
+  cart_value: 60.0
+stds:
+  sessions_7d: 4.0
+  pageviews_7d: 25.0
+  cart_abandons_30d: 1.2
+  orders_lifetime: 4.0
+  aov_lifetime: 30.0
+  recency_days: 50.0
+  discount_uses_30d: 0.8
+  price_sensitivity_score: 0.2
+  churn_risk: 0.15
+  ltv_predicted: 120.0
+  cart_value: 40.0
+personalization_features:
+  - sessions_7d
+  - pageviews_7d
+  - cart_abandons_30d
+  - orders_lifetime
+  - aov_lifetime
+  - recency_days
+  - discount_uses_30d
+  - price_sensitivity_score
+  - churn_risk
+  - ltv_predicted
+  - age_band

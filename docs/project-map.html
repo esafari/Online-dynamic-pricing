@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Project map — Pricing Decision Service</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #171d24;
+      --panel-2: #1d252e;
+      --line: #2a3440;
+      --text: #e8eef4;
+      --muted: #93a1b0;
+      --accent: #3ecf8e;
+      --accent-2: #7dd3fc;
+      --warn: #f5b942;
+      --bad: #f07178;
+      --shadow: 0 16px 40px rgba(0,0,0,.32);
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    html.embed header, html.embed nav.toc { display: none; }
+    html.embed .layout { display: block; padding: 8px 10px 32px; }
+    html.embed body { background: #0f1419; }
+    body {
+      margin: 0; color: var(--text);
+      font-family: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+      background:
+        radial-gradient(1100px 520px at 8% -8%, rgba(62,207,142,.12), transparent 50%),
+        radial-gradient(800px 480px at 100% 0%, rgba(125,211,252,.10), transparent 42%),
+        var(--bg);
+    }
+    header {
+      position: sticky; top: 0; z-index: 20;
+      display: flex; justify-content: space-between; align-items: center; gap: 16px;
+      padding: 14px 20px; background: rgba(15,20,25,.92);
+      border-bottom: 1px solid var(--line); backdrop-filter: blur(10px);
+    }
+    .brand h1 { margin: 0; font-size: 1.05rem; }
+    .brand p { margin: 3px 0 0; color: var(--muted); font-size: .82rem; }
+    .layout { display: grid; grid-template-columns: 250px 1fr; gap: 18px; padding: 16px 20px 64px; }
+    @media (max-width: 980px) { .layout { grid-template-columns: 1fr; } nav.toc { position: static; } }
+    nav.toc { position: sticky; top: 78px; align-self: start; display: grid; gap: 4px; max-height: calc(100vh - 96px); overflow: auto; }
+    nav.toc a {
+      color: var(--muted); text-decoration: none; font-size: .78rem;
+      padding: 6px 10px; border-radius: 8px; border: 1px solid transparent;
+    }
+    nav.toc a:hover, nav.toc a.active { color: var(--text); border-color: var(--line); background: var(--panel); }
+    article { max-width: 980px; }
+    section.card {
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: var(--radius); box-shadow: var(--shadow);
+      padding: 22px 24px 26px; margin: 0 0 18px;
+    }
+    h2 { margin: 0 0 10px; font-size: 1.25rem; }
+    h3 { margin: 22px 0 8px; font-size: 1.02rem; color: #d7eee3; }
+    section.card p { line-height: 1.7; margin: 0 0 14px; }
+    section.card p:last-child { margin-bottom: 0; }
+    code { font-family: Consolas, "Cascadia Mono", ui-monospace, monospace; font-size: .88em; }
+    .phase { color: var(--accent); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 6px; }
+    .diagram {
+      font-family: Consolas, ui-monospace, monospace; font-size: .72rem;
+      background: #0c1014; border: 1px solid var(--line); border-radius: 12px;
+      padding: 14px; overflow: auto; white-space: pre; line-height: 1.35; color: #c9e8d8;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1>Pricing Decision Service — project map</h1>
+      <p>Every folder and file in this repository, in the order the request actually uses them</p>
+    </div>
+  </header>
+  <div class="layout">
+    <nav class="toc" id="toc"></nav>
+    <article>
+
+<section class="card" id="overview">
+  <p class="phase">Start here</p>
+  <h2>How to read this</h2>
+  <p>This repository is one product: a Pricing Decision Service that answers “what price should we show this shopper, for this SKU, right now?” and then learns from that choice overnight. The Python that does the work lives under <code>src/pricing_decision/</code>. The knobs that change without a code edit live under <code>configs/</code>. What the service writes while it runs lives under <code>data/</code>. The browser lab you are looking at is FastAPI serving <code>src/pricing_decision/web/index.html</code>. Azure does not add a second codebase; it is a runbook in <code>docs/</code> plus deploy scripts in <code>infra/</code> that host this same package.</p>
+  <p>When you are lost, start at <code>src/pricing_decision/api/app.py</code>. That file is FastAPI. A live request hits <code>POST /v1/price</code>, which calls <code>PricingOrchestrator.decide()</code> in <code>orchestrator.py</code>, which walks stages 0 through 8. Overnight learning is the same orchestrator’s cousin, <code>offline/pipeline.py</code>, writing into <code>data/lake/</code>. To put the app on Azure you change adapters under <code>services/</code>, not the causal or bandit stages.</p>
+  <p>Ignore generated folders. <code>.pytest_cache/</code> and <code>src/pricing_decision_service.egg-info/</code> appear after you install or test; they are not source. A local <code>.venv/</code> is your Python environment. None of those belong in the story of the product.</p>
+</section>
+
+<section class="card" id="tree">
+  <p class="phase">At a glance</p>
+  <h2>Folder tree</h2>
+  <p>Everything important sits next to <code>pyproject.toml</code>. The package is src-layout, so imports are <code>pricing_decision....</code> and the installable name is <code>pricing-decision-service</code>.</p>
+  <div class="diagram">Pricing/
+  pyproject.toml          package name, deps, pytest, CLI entry
+  README.md               how to install and call /v1/price
+  Dockerfile              image Azure Container Apps will run
+  .dockerignore
+  .gitignore
+  configs/                YAML the running service reads
+  src/pricing_decision/   the Python package
+    api/app.py            FastAPI  ← start here for HTTP
+    web/index.html        this lab UI
+    orchestrator.py       wires stages 0–10
+    stages/               online pipeline
+    services/             catalog, Redis-to-be, logger…
+    core/                 request/response models
+    offline/              lake, train, OPE, gate
+    cli.py                pds serve / pds decide
+  data/                   logs and lake files (generated)
+  tests/                  pytest
+  docs/                   Azure runbook + this map
+  infra/                  PowerShell to deploy
+  examples/               sample JSON request
+  scripts/                one-off HTML helpers</div>
+</section>
+
+<section class="card" id="root">
+  <p class="phase">Repo root</p>
+  <h2>Root files</h2>
+  <p><code>pyproject.toml</code> is how Python knows this is a package. It names the project <code>pricing-decision-service</code>, requires Python 3.11+, and lists FastAPI, uvicorn, pydantic, numpy, PyYAML, and prometheus-client. The optional <code>dev</code> extra adds pytest and httpx. The console script <code>pds</code> points at <code>pricing_decision.cli:main</code>. Setuptools is told to find packages under <code>src/</code>. Pytest is told to look in <code>tests/</code> with <code>src</code> on the path.</p>
+  <p><code>README.md</code> is the human on-ramp: the stage table, a venv install, <code>pytest</code>, a one-shot <code>cli decide</code> against <code>examples/request.json</code>, and the HTTP verbs for serve mode. It is not the Azure runbook; that is <code>docs/azure-implementation.html</code>.</p>
+  <p><code>Dockerfile</code> copies <code>pyproject.toml</code>, <code>README.md</code>, <code>src/</code>, <code>configs/</code>, and <code>examples/</code>, installs the package, and starts uvicorn on <code>pricing_decision.api.app:app</code> at port 8080. That is the same process you run on the laptop. <code>.dockerignore</code> keeps tests, data, and caches out of the image. <code>.gitignore</code> keeps venv, pyc, and data noise out of git.</p>
+</section>
+
+<section class="card" id="src">
+  <p class="phase">Python</p>
+  <h2>src / the package</h2>
+  <p><code>src/pricing_decision/</code> is the only Python package you maintain. <code>__init__.py</code> exports the version string FastAPI shows on <code>/health</code>. Everything else is a role: <code>api</code> speaks HTTP, <code>web</code> is the lab page, <code>stages</code> is the online pipeline, <code>services</code> talks to catalog and logs, <code>core</code> holds shared types, <code>offline</code> is the night shift, and a handful of modules at the package root glue those together.</p>
+  <p><code>config.py</code> is the compass. <code>ROOT</code> is the Pricing folder. <code>load_yaml("catalog.yaml")</code> always reads from <code>configs/</code>. <code>Settings</code> takes environment variables prefixed <code>PDS_</code> — host, port, whether Kafka is on, the log buffer directory, epsilon, the propensity floor. When you later point Redis or App Configuration at Azure, new settings land here, not in a stage file.</p>
+</section>
+
+<section class="card" id="api">
+  <p class="phase">HTTP</p>
+  <h2>FastAPI</h2>
+  <p>The FastAPI application is <code>src/pricing_decision/api/app.py</code>. <code>create_app()</code> builds it; the module-level <code>app = create_app()</code> is what uvicorn loads. <code>api/__init__.py</code> re-exports <code>create_app</code> so tests can import it cleanly.</p>
+  <p>The home page <code>GET /</code> returns <code>web/index.html</code>. <code>GET /azure</code> returns the Azure runbook. <code>GET /project</code> returns this file. <code>GET /health</code> is the liveness probe. The public pricing contract is <code>POST /v1/price</code>; the body that comes back has price, badge, coupon, reason codes, and <code>decision_id</code>, never propensity. <code>POST /v1/price:explain</code> is the internal twin that does leak scores, and it must stay off the public internet in production. Batch, outcomes, offer redeem, CS lookup, control plane, stage playground, offline run, architecture JSON, and admin reload are all routes on this same app.</p>
+  <p>You start it with <code>python -m pricing_decision.cli serve</code>, or <code>python -m uvicorn pricing_decision.api.app:app --host 127.0.0.1 --port 8080 --reload</code>. Open <code>http://127.0.0.1:8080/</code> for the lab. FastAPI’s own docs sit at <code>/docs</code> if you want the OpenAPI page.</p>
+</section>
+
+<section class="card" id="web">
+  <p class="phase">Browser</p>
+  <h2>Lab UI</h2>
+  <p><code>src/pricing_decision/web/index.html</code> is the single-page lab. The four (now five) top buttons are pipelines: Project, Azure, Architecture, Online PDS, and Offline learning. Left-nav buttons under each pipeline are stages loaded from YAML through the API. Online and offline stages POST to <code>/v1/stages/run</code> and <code>/v1/offline/run</code>. Azure and Project are iframes of the HTML files in <code>docs/</code>. There is no React build; it is one HTML file with fetch calls.</p>
+</section>
+
+<section class="card" id="stages">
+  <p class="phase">Hot path</p>
+  <h2>Online stages</h2>
+  <p><code>src/pricing_decision/stages/</code> is the checkout pipeline, one file per stage, numbered so the spec and the code stay aligned. <code>__init__.py</code> marks the folder as a package. You do not rewrite these files to “be Azure.”</p>
+  <p><code>stage0_ingestion.py</code> validates the request, resolves the SKU in the catalog, and honors idempotency so a retried checkout does not mint a second decision. <code>stage1_preprocess.py</code> builds the feature vector: identity, consent, segment, and the raw <code>x</code> that later models see. If consent is off, the vector stays generic. <code>stage2_guardrails.py</code> drops illegal prices — MAP, floor, stock, frequency, budget — before anyone scores them. <code>stage3_candidates.py</code> turns what remains into a discrete arm ladder. Holdout collapses that ladder to list price only.</p>
+  <p><code>stage4_causal.py</code> scores each surviving arm; the lab uses an S-learner that predicts expected margin. <code>stage5_bandit.py</code> is contextual Thompson sampling with an epsilon floor and a propensity floor so later OPE never divides by zero. <code>stage6_postprocess.py</code> charm-prices, binds a coupon, and applies stickiness so the same shopper and SKU can see the same offer again. <code>stage7_logging.py</code> writes the experience tuple, including propensity, without putting that tuple on the client response. <code>stage8_response.py</code> is the safe JSON the channel actually receives. <code>stage9_fallback.py</code> is the ladder used when a dependency is sick: you still return a price. <code>stage10_cache.py</code> holds the version pins (policy, causal model, guardrails) and supports hot reload.</p>
+</section>
+
+<section class="card" id="services">
+  <p class="phase">Adapters</p>
+  <h2>Services</h2>
+  <p><code>src/pricing_decision/services/</code> is the seam you change when this lab becomes Azure. The orchestrator talks to these classes; the stages do not open files or sockets themselves.</p>
+  <p><code>catalog.py</code> reads SKUs from <code>configs/catalog.yaml</code> today and will read Cosmos later. <code>identity.py</code> resolves a customer, guest, or anonymous id and the consent flag. <code>feature_store.py</code> is the in-memory map of feature vectors; Redis replaces it. <code>coupon.py</code> issues, looks up, and redeems offer codes; Cosmos becomes the ledger so a code still works after a policy change. <code>control_plane.py</code> holds the kill switch, merchandiser freeze, daily discount budget, and the sticky-price store; App Configuration and Redis take those jobs in production. <code>logger.py</code> appends JSONL under <code>data/log_buffer/</code> and already knows how to speak Kafka when <code>PDS_KAFKA_ENABLED</code> is true. <code>outcomes.py</code> records purchase, refund, and return against a <code>decision_id</code>. <code>gateway.py</code> is the in-process stand-in for the product split that Front Door and API Management will own: what is public versus what is explain and admin.</p>
+</section>
+
+<section class="card" id="core">
+  <p class="phase">Shared types</p>
+  <h2>Core</h2>
+  <p><code>src/pricing_decision/core/</code> is the vocabulary the rest of the package shares. <code>models.py</code> is pydantic: the inbound <code>DecisionRequest</code>, arms, scores, the client <code>Offer</code>, the full <code>PricingDecision</code>, and the <code>DecisionContext</code> that travels down the pipeline. <code>exceptions.py</code> is how an unknown SKU becomes HTTP 404 and a validation failure becomes 400. <code>ids.py</code> mints <code>decision_id</code> values. <code>metrics.py</code> is the in-process counter snapshot behind <code>GET /metrics</code>. <code>tracing.py</code> is the hook for request timing. None of this knows about Azure.</p>
+</section>
+
+<section class="card" id="offline">
+  <p class="phase">Night shift</p>
+  <h2>Offline learning</h2>
+  <p><code>src/pricing_decision/offline/</code> is the same product after checkout, when you are allowed to be slow. <code>pipeline.py</code> is the conductor: ingest, join, backfill, causal, bandit, OPE, registry, gate. <code>lake.py</code> reads and writes JSONL under <code>data/lake/</code>; that path becomes ADLS Delta later. <code>ingest.py</code> copies the live log buffer into the lake. <code>seed.py</code> can invent history so the lab has something to train on. <code>join.py</code> matches decisions to outcomes on <code>decision_id</code> with a reward window. <code>backfill.py</code> reconstructs features as of the decision timestamp, not “whatever is current.” <code>reward.py</code> turns a joined row into the scalar the models optimize.</p>
+  <p><code>causal.py</code> trains the S-learner used online. <code>bandit.py</code> updates the policy. <code>ope.py</code> estimates IPS, SNIPS, and DR so you can score a new policy on old logs. <code>fairness.py</code> and <code>drift.py</code> are the gates that sit beside that estimate. <code>registry.py</code> writes <code>data/registry/models.json</code>; Azure ML replaces that file. <code>gate.py</code> decides whether a candidate is allowed to go near traffic. <code>rollout.py</code> is the shadow-then-canary story that Container Apps revisions will execute with traffic weights.</p>
+</section>
+
+<section class="card" id="glue">
+  <p class="phase">How it is wired</p>
+  <h2>Glue code</h2>
+  <p><code>orchestrator.py</code> constructs every service and every stage, then <code>decide()</code> walks ingestion through response, catching failures into the fallback handler. <code>decide_batch()</code> is the campaign path. If you want to see the whole online story in one file, this is it.</p>
+  <p><code>playground.py</code> powers the Online PDS tab: it can stop after a named stage so the lab can show arms or scores without finishing the request. <code>platform.py</code> powers Architecture: use cases from YAML, the monitor snapshot, CS lookup, the control-plane view. <code>architecture.py</code> loads the YAML that fills the Architecture, Azure, and Project left-navs.</p>
+  <p><code>cli.py</code> is the command line. <code>pds serve</code> starts uvicorn. <code>pds decide -f examples/request.json --explain</code> runs one decision without a browser. That is the fastest way to prove the brain still works after you touch a stage.</p>
+</section>
+
+<section class="card" id="configs">
+  <p class="phase">Knobs</p>
+  <h2>configs</h2>
+  <p>YAML in <code>configs/</code> is what the running process reads. Change a file and, for many of them, reload; you should not need a new function to add a SKU or flip a kill switch in the lab.</p>
+  <p><code>catalog.yaml</code> is the demo merchandising world: Maya, James, Priya, Alex, Noah, and the SKUs including SKU-1234 at list 50. <code>segments.yaml</code> names those shopper types. <code>features.yaml</code> is the feature contract and TTLs. <code>guardrails.yaml</code> is MAP, floors, frequency, and budget. <code>ladders.yaml</code> is the discount arms. <code>control_plane.yaml</code> is kill switch, freeze, sticky TTL, and the daily cap. <code>versions.yaml</code> pins policy, causal model, and guardrail version. <code>stages.yaml</code> and <code>offline_stages.yaml</code> are the left-nav copy for the lab. <code>use_cases.yaml</code> is PDP, kill switch, sticky, budget, holdout, and the rest of the Architecture demos. <code>architecture.yaml</code> is layers, loops, and gaps. <code>azure_architecture.yaml</code>, <code>azure_components.yaml</code>, and <code>azure_stages.yaml</code> feed the Azure tab. <code>project_map.yaml</code> is the left-nav for this page.</p>
+</section>
+
+<section class="card" id="data">
+  <p class="phase">What the lab writes</p>
+  <h2>data</h2>
+  <p>Nothing under <code>data/</code> is the source of truth for how the product should behave; it is what a run produced. You can delete the JSONL files and the lab will recreate them the next time you score or train. Do not hand-edit them and expect the models to stay coherent.</p>
+  <p><code>data/log_buffer/decisions.jsonl</code> is the live experience log, one JSON object per <code>decide()</code>, including propensity. That file is what Event Hubs replaces. <code>data/lake/</code> is the local lakehouse: <code>decisions.jsonl</code> after ingest, <code>outcomes.jsonl</code> from checkout events, <code>training.jsonl</code> after join, <code>backfill.jsonl</code> after point-in-time features, plus <code>causal_model.jsonl</code>, <code>bandit_model.jsonl</code>, <code>ope_report.jsonl</code>, <code>fairness_report.jsonl</code>, and <code>drift_report.jsonl</code>. <code>data/registry/models.json</code> is the tiny model registry the gate reads. On Azure those paths become Event Hubs, ADLS, and Azure ML.</p>
+</section>
+
+<section class="card" id="tests">
+  <p class="phase">Proof</p>
+  <h2>tests</h2>
+  <p><code>tests/conftest.py</code> builds a shared orchestrator fixture so each test does not re-parse every YAML file. The <code>test_stage*.py</code> files walk the online contract: ingestion, preprocess, guardrails and candidates, causal and bandit, response and logging. <code>test_stage_playground.py</code> hits the lab run API. <code>test_offline_pipeline.py</code> seeds, joins, and checks OPE. <code>test_architecture.py</code> is the net under the Architecture, Azure, and Project tabs — it asserts the HTML maps and the JSON catalogs still exist. From the Pricing folder, <code>pytest</code> should stay green after you change a stage. Azure integration tests, when you add them, belong here marked so they skip unless <code>PDS_ENV</code> starts with <code>azure</code>.</p>
+</section>
+
+<section class="card" id="infra">
+  <p class="phase">Around the package</p>
+  <h2>infra, docs, scripts, examples</h2>
+  <p><code>infra/azure-up.ps1</code> is the one-pass deploy: resource group, ACR, Container Apps, a printed HTTPS URL. <code>infra/cli-kids.ps1</code> is the same first deploy with more prompting. Neither script rewrites Python. They host the Docker image of this package in Canada Central.</p>
+  <p><code>docs/azure-implementation.html</code> is the Azure tab: components, architecture, CLI, phases. <code>docs/project-map.html</code> is this file. FastAPI serves both; you can also open them as files in a browser.</p>
+  <p><code>examples/request.json</code> is a legal <code>POST /v1/price</code> body for the CLI. <code>scripts/</code> holds one-off helpers that were used to generate pieces of the Azure HTML. They are not part of the runtime. You do not run them to price anything.</p>
+</section>
+
+    </article>
+  </div>
+  <script>
+    if (new URLSearchParams(location.search).has("embed")) {
+      document.documentElement.classList.add("embed");
+    }
+    const toc = document.getElementById("toc");
+    document.querySelectorAll("article section.card").forEach((sec) => {
+      const h = sec.querySelector("h2");
+      if (!h) return;
+      const a = document.createElement("a");
+      a.href = "#" + sec.id;
+      a.textContent = h.textContent;
+      toc.appendChild(a);
+    });
+  </script>
+</body>
+</html>

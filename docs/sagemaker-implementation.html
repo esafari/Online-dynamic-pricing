@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SageMaker implementation — Pricing Decision Service</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #171d24;
+      --panel-2: #1d252e;
+      --line: #2a3440;
+      --text: #e8eef4;
+      --muted: #93a1b0;
+      --accent: #3ecf8e;
+      --accent-2: #7dd3fc;
+      --warn: #f5b942;
+      --shadow: 0 16px 40px rgba(0,0,0,.32);
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    html.embed header, html.embed nav.toc { display: none; }
+    html.embed .layout { display: block; padding: 8px 10px 32px; }
+    html.embed body { background: #0f1419; }
+    body {
+      margin: 0; color: var(--text);
+      font-family: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+      background:
+        radial-gradient(1100px 520px at 8% -8%, rgba(62,207,142,.12), transparent 50%),
+        radial-gradient(800px 480px at 100% 0%, rgba(125,211,252,.10), transparent 42%),
+        var(--bg);
+    }
+    header {
+      position: sticky; top: 0; z-index: 20;
+      display: flex; justify-content: space-between; align-items: center; gap: 16px;
+      padding: 14px 20px; background: rgba(15,20,25,.92);
+      border-bottom: 1px solid var(--line); backdrop-filter: blur(10px);
+    }
+    .brand h1 { margin: 0; font-size: 1.05rem; }
+    .brand p { margin: 3px 0 0; color: var(--muted); font-size: .82rem; }
+    .layout { display: grid; grid-template-columns: 250px 1fr; gap: 18px; padding: 16px 20px 64px; }
+    @media (max-width: 980px) { .layout { grid-template-columns: 1fr; } nav.toc { position: static; } }
+    nav.toc { position: sticky; top: 78px; align-self: start; display: grid; gap: 4px; max-height: calc(100vh - 96px); overflow: auto; }
+    nav.toc a {
+      color: var(--muted); text-decoration: none; font-size: .78rem;
+      padding: 6px 10px; border-radius: 8px; border: 1px solid transparent;
+    }
+    nav.toc a:hover { color: var(--text); border-color: var(--line); background: var(--panel); }
+    article { max-width: 980px; }
+    section.card {
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: var(--radius); box-shadow: var(--shadow);
+      padding: 22px 24px 26px; margin: 0 0 18px;
+    }
+    h2 { margin: 0 0 10px; font-size: 1.25rem; }
+    h3 { margin: 22px 0 8px; font-size: 1.02rem; color: #d7eee3; }
+    section.card p { line-height: 1.7; margin: 0 0 14px; }
+    code { font-family: Consolas, "Cascadia Mono", ui-monospace, monospace; font-size: .88em; }
+    .phase { color: var(--accent); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 6px; }
+    .diagram {
+      font-family: Consolas, ui-monospace, monospace; font-size: .72rem;
+      background: #0c1014; border: 1px solid var(--line); border-radius: 12px;
+      padding: 14px; overflow: auto; white-space: pre; line-height: 1.35; color: #c9e8d8;
+    }
+    pre {
+      background: #0c1014; border: 1px solid var(--line); border-radius: 12px;
+      padding: 12px 14px; overflow: auto; font-size: .8rem; line-height: 1.45; position: relative;
+    }
+    button.copy {
+      position: absolute; top: 8px; right: 8px; font-size: .7rem;
+      background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+      border-radius: 8px; padding: 4px 8px; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1>Implement this project on Amazon SageMaker</h1>
+      <p>Canada · same OfflinePipeline · train and OPE only · FastAPI still serves /v1/price</p>
+    </div>
+  </header>
+  <div class="layout">
+    <nav class="toc" id="toc"></nav>
+    <article>
+
+<section class="card" id="what">
+  <p class="phase">Read this first</p>
+  <h2>What SageMaker is in this project</h2>
+  <p>SageMaker is the night shift. It replaces the laptop jobs in <code>offline/pipeline.py</code> and the file <code>data/registry/models.json</code>. It does not replace FastAPI. A shopper still hits <code>POST /v1/price</code> on Container Apps or ECS. Guardrails, the S-learner, and Thompson sampling still run in-process in that container. SageMaker reads yesterday’s decisions and outcomes, joins them, reconstructs point-in-time features, trains, runs off-policy evaluation, and is allowed to register a challenger only if that estimate beats the current policy.</p>
+  <p>Do not put checkout on a SageMaker real-time endpoint on day one. That endpoint is a later option if μ ever leaves the container. For this repo, the artifact SageMaker produces is a version pin (<code>causal_model_id</code>, <code>policy_id</code>) plus files the online cache can load. You change <code>offline/lake.py</code> to read S3 and <code>offline/registry.py</code> to talk to the SageMaker Model Registry. You do not rewrite <code>stage4_causal.py</code> or <code>stage5_bandit.py</code>.</p>
+  <p>Create every bucket, job, and registry in <code>ca-central-1</code> so shopper and decision data stay in Canada. Do not train in <code>us-east-1</code> because the instance looks cheaper.</p>
+</section>
+
+<section class="card" id="map">
+  <p class="phase">The mapping</p>
+  <h2>Local job → SageMaker</h2>
+  <p>The Offline learning tab is the contract. Each left-nav stage there is one SageMaker step. Ingest and join become Processing jobs that write bronze then silver. Backfill is a Processing job that writes silver features as of the decision timestamp. Causal and bandit become Training jobs. OPE, fairness, and drift are Processing jobs that write gold reports. Registry plus gate is a Model Registry package plus a condition step. Rollout is not a SageMaker deploy of the FastAPI app; it is the online host taking a new pin after the gate says yes.</p>
+  <div class="diagram">This repo                         SageMaker (ca-central-1)
+--------------------------         --------------------------------
+data/lake/*.jsonl             →    s3://pds-lake-…/bronze|silver|gold
+data/log_buffer/              →    already captured to S3 / Kinesis
+offline/ingest.py             →    Processing: ol_ingest
+offline/join.py               →    Processing: ol_join
+offline/backfill.py           →    Processing: ol_backfill
+offline/causal.py             →    Training: ol_causal
+offline/bandit.py             →    Training: ol_bandit
+offline/ope.py                →    Processing: ol_ope
+offline/fairness.py + drift   →    Processing: ol_fairness, ol_drift
+data/registry/models.json     →    SageMaker Model Registry
+offline/gate.py               →    Pipeline condition (register or stop)
+offline/rollout.py            →    ECS / Container Apps traffic, not SM endpoint
+Dockerfile                    →    ECR image the jobs run</div>
+</section>
+
+<section class="card" id="prep">
+  <p class="phase">Step 1</p>
+  <h2>Laptop and account</h2>
+  <p>Open PowerShell in the Pricing folder (the directory that contains <code>Dockerfile</code>). You need a development AWS account, the AWS CLI, Docker Desktop, and the same Python environment this repo already uses. Sign in, pin the region, and prove the brain still works before you spend anything.</p>
+  <pre><button class="copy">Copy</button><code>aws --version
+aws configure
+# AWS Access Key ID / Secret / region = ca-central-1 / output = json
+aws sts get-caller-identity
+
+cd C:\Users\100990295\Desktop\CAnada_Kh_com_2026_02\Desctop\ML_Project\Pricing
+pip install -e ".[dev]"
+pytest
+python -m pricing_decision.cli serve</code></pre>
+  <p>In another terminal, <code>POST /v1/price</code> for Maya and SKU-1234. Then in the lab open Offline learning, seed history, and run through OPE so you know the pipeline on disk. SageMaker will run that same Python.</p>
+</section>
+
+<section class="card" id="bucket">
+  <p class="phase">Step 2</p>
+  <h2>S3 lake</h2>
+  <p>Create one bucket in Canada for this environment. Hierarchical prefixes replace the local files: bronze is raw capture, silver is joined and backfilled rows, gold is OPE and campaign reports. Block public access. Turn on default encryption. This bucket is the lake <code>LakeHouse</code> will point at once you swap <code>offline/lake.py</code>.</p>
+  <pre><button class="copy">Copy</button><code>$Region = "ca-central-1"
+$Account = aws sts get-caller-identity --query Account --output text
+$Bucket = "pds-lake-$Account-dev"
+aws s3api create-bucket --bucket $Bucket --region $Region --create-bucket-configuration LocationConstraint=$Region
+aws s3api put-public-access-block --bucket $Bucket --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+aws s3api put-bucket-encryption --bucket $Bucket --server-side-encryption-configuration '{\"Rules\":[{\"ApplyServerSideEncryptionByDefault\":{\"SSEAlgorithm\":\"AES256\"}}]}'
+
+aws s3api put-object --bucket $Bucket --key bronze/decisions/
+aws s3api put-object --bucket $Bucket --key bronze/outcomes/
+aws s3api put-object --bucket $Bucket --key silver/training/
+aws s3api put-object --bucket $Bucket --key silver/backfill/
+aws s3api put-object --bucket $Bucket --key gold/ope/
+aws s3api put-object --bucket $Bucket --key gold/fairness/
+Write-Host "BUCKET=$Bucket"</code></pre>
+  <p>Save the bucket name. You will pass it into every job as an environment variable <code>PDS_LAKE_URI=s3://$Bucket</code>.</p>
+</section>
+
+<section class="card" id="role">
+  <p class="phase">Step 3</p>
+  <h2>IAM role the jobs assume</h2>
+  <p>SageMaker jobs do not use your laptop access key. They assume a role that can read and write the lake, pull the ECR image, and write CloudWatch logs. Create that role once. Later you attach the same role to the Pipeline.</p>
+  <pre><button class="copy">Copy</button><code>$Trust = '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"sagemaker.amazonaws.com"},"Action":"sts:AssumeRole"}]}'
+aws iam create-role --role-name pds-sagemaker-dev --assume-role-policy-document $Trust
+aws iam attach-role-policy --role-name pds-sagemaker-dev --policy-arn arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
+# Tighten later: S3 on $Bucket only, ECR pull, CloudWatch Logs, no * .
+$RoleArn = aws iam get-role --role-name pds-sagemaker-dev --query Role.Arn --output text
+Write-Host "ROLE=$RoleArn"</code></pre>
+  <p>AmazonSageMakerFullAccess is acceptable in a throwaway dev account so the first job runs. Before anything that looks like production, replace it with a bucket-scoped policy. Do not put <code>AWS_SECRET_ACCESS_KEY</code> in a training script.</p>
+</section>
+
+<section class="card" id="image">
+  <p class="phase">Step 4</p>
+  <h2>Build the image SageMaker will run</h2>
+  <p>The jobs should execute the package you already have, not a notebook rewrite of the S-learner. Build the existing Dockerfile, push it to ECR in Canada, and that image becomes both the online host (ECS) and the offline worker (SageMaker). Processing and Training jobs will call <code>python -m</code> into <code>offline.pipeline</code>.</p>
+  <pre><button class="copy">Copy</button><code>aws ecr create-repository --repository-name pds-api --region $Region
+aws ecr get-login-password --region $Region | docker login --username AWS --password-stdin "$Account.dkr.ecr.$Region.amazonaws.com"
+docker build -t pds-api:local .
+docker tag pds-api:local "$Account.dkr.ecr.$Region.amazonaws.com/pds-api:v0.1.0"
+docker push "$Account.dkr.ecr.$Region.amazonaws.com/pds-api:v0.1.0"
+$Image = "$Account.dkr.ecr.$Region.amazonaws.com/pds-api:v0.1.0"
+Write-Host "IMAGE=$Image"</code></pre>
+  <p>SageMaker must be allowed to pull that repository. If the first job fails with an image-pull error, add a repository policy that lets <code>sagemaker.amazonaws.com</code> and the role you created pull <code>pds-api</code>.</p>
+</section>
+
+<section class="card" id="upload">
+  <p class="phase">Step 5</p>
+  <h2>Put data on S3</h2>
+  <p>Two ways to get a lake SageMaker can see. The fastest is to run Offline learning locally so <code>data/lake/</code> fills, then sync those files. The production way is Kinesis or MSK writing bronze directly; you can do that after the first job succeeds.</p>
+  <pre><button class="copy">Copy</button><code># After you have run Offline → Ingest / Join / Backfill in the lab:
+aws s3 sync data\lake s3://$Bucket/silver/local-seed --region $Region
+aws s3 cp data\log_buffer\decisions.jsonl s3://$Bucket/bronze/decisions/decisions.jsonl --region $Region
+aws s3 ls s3://$Bucket/ --recursive</code></pre>
+  <p>Until <code>lake.py</code> reads S3, a job can download the prefix to <code>/opt/ml/processing/input</code> (SageMaker mounts it) and write outputs to <code>/opt/ml/processing/output</code>, which lands back on S3. That is enough for the first pass. The adapter change is: if <code>PDS_LAKE_URI</code> starts with <code>s3://</code>, read and write there; otherwise keep today’s JSONL path so pytest still passes on a laptop.</p>
+</section>
+
+<section class="card" id="jobs">
+  <p class="phase">Step 6</p>
+  <h2>Processing jobs — ingest, join, backfill</h2>
+  <p>A Processing job is a container that starts, runs one command, writes files, and dies. That is <code>ol_ingest</code>, <code>ol_join</code>, and <code>ol_backfill</code>. Create a tiny entry script once (you can keep it as the command string for the first week). Run ingest first, then join, then backfill. Do not train on “current” features.</p>
+  <pre><button class="copy">Copy</button><code>$Image = "$Account.dkr.ecr.$Region.amazonaws.com/pds-api:v0.1.0"
+$RoleArn = aws iam get-role --role-name pds-sagemaker-dev --query Role.Arn --output text
+
+# Ingest + seed so the lake is not empty
+aws sagemaker create-processing-job --region $Region --processing-job-name "pds-ingest-$(Get-Date -Format yyyyMMddHHmm)" `
+  --role-arn $RoleArn `
+  --app-specification "ImageUri=$Image,ContainerEntrypoint=python,ContainerArguments=-c,from pricing_decision.offline.pipeline import OfflinePipeline; from pricing_decision.orchestrator import PricingOrchestrator; OfflinePipeline(PricingOrchestrator()).run('ol_ingest', {'seed_n': 200})" `
+  --processing-resources "ClusterConfig={InstanceCount=1,InstanceType=ml.m5.large,VolumeSizeInGB=20}" `
+  --processing-output-config "Outputs=[{OutputName=lake,S3Output={S3Uri=s3://$Bucket/silver/after-ingest,LocalPath=/opt/ml/processing/output}}]"</code></pre>
+  <p>Watch the job until it is Completed. Then create the same shape of job for <code>ol_join</code> and <code>ol_backfill</code>, pointing the input at the previous output prefix. In the console: SageMaker → Processing → the job name → CloudWatch logs. If Python cannot import <code>pricing_decision</code>, the image was not this repo.</p>
+  <p>When you are ready to stop pasting one-liners, save <code>infra/sm-process.json</code> and reuse <code>aws sagemaker create-processing-job --cli-input-json file://infra/sm-process.json</code>. The important part is the stage name you pass to <code>OfflinePipeline.run</code>.</p>
+</section>
+
+<section class="card" id="train">
+  <p class="phase">Step 7</p>
+  <h2>Training jobs — causal and bandit</h2>
+  <p>Training jobs are the same idea with a model directory. <code>ol_causal</code> writes the S-learner artifact; <code>ol_bandit</code> writes the policy posterior. Use a small CPU instance. A GPU is unnecessary for the numpy learners in this repo and is a common way to leave money running overnight.</p>
+  <pre><button class="copy">Copy</button><code>aws sagemaker create-training-job --region $Region --training-job-name "pds-causal-$(Get-Date -Format yyyyMMddHHmm)" `
+  --role-arn $RoleArn `
+  --algorithm-specification "TrainingImage=$Image,TrainingInputMode=File" `
+  --hyper-parameters "stage=ol_causal" `
+  --input-data-config "ChannelName=training,DataSource={S3DataSource={S3DataType=S3Prefix,S3Uri=s3://$Bucket/silver/backfill,S3DataDistributionType=FullyReplicated}}" `
+  --output-data-config "S3OutputPath=s3://$Bucket/gold/models" `
+  --resource-config "InstanceCount=1,InstanceType=ml.m5.large,VolumeSizeInGB=20" `
+  --stopping-condition "MaxRuntimeInSeconds=3600" `
+  --environment "PDS_LAKE_URI=s3://$Bucket"</code></pre>
+  <p>The container must honor SageMaker’s paths or your own <code>PDS_LAKE_URI</code>. The first week, the easiest path is still <code>OfflinePipeline(...).run("ol_causal")</code> after the input channel is copied to the lake directory the code already knows. Repeat the job with <code>ol_bandit</code>. Do not start the online FastAPI process inside this job.</p>
+</section>
+
+<section class="card" id="ope">
+  <p class="phase">Step 8</p>
+  <h2>OPE, fairness, and drift</h2>
+  <p>A challenger you have not evaluated is just a new file. Run Processing jobs for <code>ol_ope</code> (estimator <code>dr</code>, then look at IPS and SNIPS too), <code>ol_fairness</code>, and <code>ol_drift</code>. Gold prefixes should contain JSON that says whether DR beats the current policy, whether the 95% interval still clears it, whether ESS is healthy, whether a segment price gap is under 5%, and whether propensity PSI is under 0.2. If those files are missing, the registry step must refuse.</p>
+  <pre><button class="copy">Copy</button><code>aws sagemaker create-processing-job --region $Region --processing-job-name "pds-ope-$(Get-Date -Format yyyyMMddHHmm)" `
+  --role-arn $RoleArn `
+  --app-specification "ImageUri=$Image,ContainerEntrypoint=python,ContainerArguments=-c,from pricing_decision.offline.pipeline import OfflinePipeline; from pricing_decision.orchestrator import PricingOrchestrator; OfflinePipeline(PricingOrchestrator()).run('ol_ope', {'estimator': 'dr'})" `
+  --processing-resources "ClusterConfig={InstanceCount=1,InstanceType=ml.m5.large,VolumeSizeInGB=20}" `
+  --processing-output-config "Outputs=[{OutputName=ope,S3Output={S3Uri=s3://$Bucket/gold/ope,LocalPath=/opt/ml/processing/output}}]"</code></pre>
+</section>
+
+<section class="card" id="registry">
+  <p class="phase">Step 9</p>
+  <h2>Model Registry and the gate</h2>
+  <p>Create a model package group once. Each successful night creates a package with the causal artifact, the bandit artifact, the OPE JSON, and the version pins. Approval is the gate you already coded: DR better than current, lower CI above current, ESS ok, fairness ok, latency budget ok. If the gate fails, the package stays Pending and checkout keeps the old pins. If it passes, mark it Approved and only then tell the online host to take <code>policy_id</code> / <code>causal_model_id</code>.</p>
+  <pre><button class="copy">Copy</button><code>aws sagemaker create-model-package-group --region $Region `
+  --model-package-group-name pds-pricing-policies `
+  --model-package-group-description "Causal + bandit pins for the Pricing Decision Service"
+
+# After a training job finishes and OPE JSON is on S3, register (fill the ModelDataUrl):
+# aws sagemaker create-model-package --model-package-group-name pds-pricing-policies `
+#   --inference-specification file://infra/sm-package.json</code></pre>
+  <p>In Python, <code>offline/registry.py</code> should call <code>create_model_package</code> instead of writing <code>models.json</code> when <code>PDS_ENV</code> starts with <code>aws</code>. <code>offline/gate.py</code> stays the same checks. It only changes where it reads the OPE blob and where it writes Approved versus Staging.</p>
+</section>
+
+<section class="card" id="pipeline">
+  <p class="phase">Step 10</p>
+  <h2>One nightly SageMaker Pipeline</h2>
+  <p>Once the individual jobs complete by hand, wire them so you cannot run train before backfill. SageMaker Pipelines is the DAG: ingest → join → backfill → causal and bandit in parallel → OPE → fairness → drift → condition (gate) → register. Schedule it with EventBridge at a quiet Canadian hour. Failed pytest in CI must not update the image the pipeline uses.</p>
+  <pre><button class="copy">Copy</button><code># After you add infra/sm_pipeline.py (uses sagemaker.workflow):
+# pip install sagemaker boto3
+# python infra/sm_pipeline.py   # upserts the pipeline
+# aws sagemaker start-pipeline-execution --pipeline-name pds-offline-nightly --region ca-central-1</code></pre>
+  <p>A minimal pipeline script creates ProcessingStep objects whose command is still <code>OfflinePipeline(PricingOrchestrator()).run("ol_…")</code>. That is the whole point: SageMaker hosts the stages you already have. Studio is optional. You can do every step from the CLI and the console Jobs list.</p>
+</section>
+
+<section class="card" id="pins">
+  <p class="phase">Step 11</p>
+  <h2>How the model gets back to FastAPI</h2>
+  <p>Do not create a SageMaker endpoint for <code>/v1/price</code>. Checkout needs guardrails, coupons, stickiness, and a 100 ms budget in one process. After the package is Approved, write the new pins to AppConfig or SSM and have stage 10 hot-reload, or roll a new ECS task / Container Apps revision that loads the artifact from S3. Shadow means the new revision logs and does not serve. Then 1%, 5%, 25%, 100%. If CloudWatch says p99 or 5xx is wrong, put the weight back to zero.</p>
+  <p>A SageMaker endpoint is a later split if you want μ scored in a separate service. Even then, the bandit, the legal arm set, and the experience log stay in FastAPI. Training never runs inside the online task.</p>
+</section>
+
+<section class="card" id="verify">
+  <p class="phase">Step 12</p>
+  <h2>What done looks like</h2>
+  <p>You have implemented this project on SageMaker when all of the following are true. A Processing job has written silver training rows joined on <code>decision_id</code>, not customer_id. A backfill job used features as of the decision timestamp. A Training job produced a causal artifact and a bandit artifact in <code>ca-central-1</code>. An OPE job wrote DR, IPS, SNIPS, a bootstrap interval, and ESS under <code>gold/ope</code>. The Model Registry has a package that is Approved only because the gate passed, or Pending because it did not. FastAPI still answers <code>POST /v1/price</code> in tens of milliseconds with the new pins after a canary, and holdout traffic still exists. <code>pytest</code> still passes on a laptop against local JSONL.</p>
+  <pre><button class="copy">Copy</button><code>aws sagemaker list-processing-jobs --region ca-central-1 --max-results 5
+aws sagemaker list-training-jobs --region ca-central-1 --max-results 5
+aws s3 ls s3://$Bucket/gold/ope/
+aws sagemaker list-model-packages --model-package-group-name pds-pricing-policies --region ca-central-1</code></pre>
+</section>
+
+<section class="card" id="pitfalls">
+  <p class="phase">Stop signs</p>
+  <h2>What not to do</h2>
+  <p>Do not train on the online FastAPI container. Do not start by wrapping <code>/v1/price</code> in a SageMaker endpoint. Do not use <code>us-east-1</code> for the lake. Do not train on the current customer profile instead of the features as of the decision. Do not register a model because the training job status is Completed — Completed only means the process exited. Do not explore in production if the decision log is not landing in bronze; stop exploring and buffer. Do not leave an <code>ml.p3</code> instance running after a failed job. Do not rewrite the causal or bandit stages to “be SageMaker.” Swap the lake and the registry.</p>
+</section>
+
+    </article>
+  </div>
+  <script>
+    if (new URLSearchParams(location.search).has("embed")) {
+      document.documentElement.classList.add("embed");
+    }
+    const toc = document.getElementById("toc");
+    document.querySelectorAll("article section.card").forEach((sec) => {
+      const h = sec.querySelector("h2");
+      if (!h) return;
+      const a = document.createElement("a");
+      a.href = "#" + sec.id;
+      a.textContent = h.textContent;
+      toc.appendChild(a);
+    });
+    document.querySelectorAll("pre").forEach((pre) => {
+      const btn = pre.querySelector("button.copy");
+      if (!btn) return;
+      btn.addEventListener("click", async () => {
+        const text = pre.querySelector("code").innerText;
+        await navigator.clipboard.writeText(text);
+        btn.textContent = "Copied";
+        setTimeout(() => { btn.textContent = "Copy"; }, 1200);
+      });
+    });
+  </script>
+</body>
+</html>

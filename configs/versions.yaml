@@ -1,0 +1,7 @@
+policy_id: ts_v7
+causal_model_id: s_learner_v1
+guardrail_version: gr_v12
+candidate_set_version: cs_v3
+bandit_version: ts_v7
+reward_definition: margin
+response_schema_version: v1

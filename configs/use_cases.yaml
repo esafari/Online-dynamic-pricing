@@ -1,0 +1,109 @@
+- id: uc1_pdp
+  title: PDP personalized price
+  channel: web
+  trigger: Shopper opens a product page
+  reward: purchase or add-to-cart
+  risk: Perceived unfairness — keep discount tiers coarse
+  defaults: {customer_id: c_maya, sku: SKU-1234, mode: exploit}
+- id: uc2_cart
+  title: Cart abandonment discount
+  channel: email
+  trigger: Cart idle > 1 hour
+  reward: purchase within 24h
+  risk: Frequency cap (max 1 / 30 days)
+  defaults: {customer_id: c_maya, sku: SKU-1234, mode: live}
+- id: uc3_winback
+  title: Win-back email offer
+  channel: email
+  trigger: At-risk / churned segment
+  reward: reactivation purchase
+  risk: Only send if OPE uplift is positive
+  defaults: {customer_id: c_priya, sku: SKU-CASE, mode: exploit}
+- id: uc4_bundle
+  title: Dynamic bundle pricing
+  channel: web
+  trigger: Multi-item cart
+  reward: basket margin
+  risk: Margin floor on the bundle, not each SKU
+  defaults: {customer_id: c_maya, sku: SKU-CASE, cart_value: 79, mode: exploit}
+- id: uc5_upgrade
+  title: Plan / upgrade pricing
+  channel: app
+  trigger: Usage + tenure signal
+  reward: 12-month LTV proxy
+  risk: Churn vs ARPU tradeoff
+  defaults: {customer_id: c_james, sku: SKU-VIP, mode: exploit}
+- id: uc6_b2b
+  title: B2B quote
+  channel: partners
+  trigger: Account requests a quote
+  reward: close × margin
+  risk: Sales approval / floor; MAP
+  defaults: {customer_id: c_james, sku: SKU-LOCKED, mode: exploit}
+- id: uc7_hybrid
+  title: A/B holdout vs bandit
+  channel: web
+  trigger: Experiment assignment at the gateway
+  reward: same as PDP
+  risk: Holdout must stay uncontaminated
+  defaults: {customer_id: c_maya, sku: SKU-1234, experiment_hint: holdout}
+- id: uc8_coldstart
+  title: Cold-start new SKU / new customer
+  channel: web
+  trigger: No history
+  reward: explore then purchase
+  risk: OPE is weak until logs exist
+  defaults: {customer_id: c_noah, sku: SKU-CASE, mode: live}
+- id: uc9_fairness
+  title: Fairness / regulatory audit
+  channel: web
+  trigger: Compliance review
+  reward: parity of price across segments
+  risk: Protected attributes logged, never used as model features
+  defaults: {customer_id: c_alex, sku: SKU-1234, mode: exploit}
+- id: uc10_competitor
+  title: Competitor price move
+  channel: web
+  trigger: Competitor feed updates
+  reward: stay inside the competitor band
+  risk: Re-explore after the prior shifts
+  defaults: {customer_id: c_maya, sku: SKU-LOW, mode: live}
+- id: uc11_search
+  title: Search / listing price match
+  channel: web
+  trigger: Grid tile must match the PDP for this session
+  reward: click-through then purchase
+  risk: Mismatched grid vs PDP kills conversion
+  defaults: {customer_id: c_maya, sku: SKU-1234, sticky: true, mode: exploit}
+- id: uc12_campaign
+  title: Batch campaign scoring
+  channel: email
+  trigger: CRM list scored overnight
+  reward: purchase inside the offer TTL
+  risk: Same propensity contract as the hot path
+  defaults: {customer_id: c_maya, sku: SKU-1234, channel: email, mode: exploit}
+  batch:
+    - {customer_id: c_maya, sku: SKU-1234, channel: email, mode: exploit}
+    - {customer_id: c_priya, sku: SKU-CASE, channel: email, mode: exploit}
+    - {customer_id: c_james, sku: SKU-VIP, channel: email, mode: exploit}
+- id: uc13_killswitch
+  title: Kill switch / merchandiser freeze
+  channel: web
+  trigger: SRE or legal flips control plane
+  reward: none — serve list price
+  risk: Must take effect on the next request
+  defaults: {customer_id: c_maya, sku: SKU-1234, mode: live}
+- id: uc14_sticky
+  title: Cross-channel sticky price
+  channel: web
+  trigger: Same shopper opens mobile after desktop
+  reward: cart completion
+  risk: Price flip inside the TTL looks unfair
+  defaults: {customer_id: c_maya, sku: SKU-1234, sticky: true, mode: live}
+- id: uc15_budget
+  title: Daily discount budget exhausted
+  channel: web
+  trigger: Promotional spend hits the cap
+  reward: protect margin
+  risk: Exploration must stop; list price only
+  defaults: {customer_id: c_maya, sku: SKU-1234, mode: live}

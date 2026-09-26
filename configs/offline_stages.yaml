@@ -1,0 +1,360 @@
+- id: ol_overview
+  number: null
+  title: Offline overview
+  tagline: Learn from logs. Never in the checkout hot path.
+  about: >
+    The online Pricing Decision Service answers in tens of milliseconds.
+    This pipeline is the night shift. It reads yesterday’s decisions and
+    purchases, builds better models, estimates whether a new policy would
+    have made more money, and only then is allowed near live traffic.
+  in_short: >
+    Kafka-style logs in → join, train, evaluate, gate → a candidate model
+    out. Checkout never waits on this work.
+  process:
+    - title: Collect what happened
+      detail: >
+        Decision logs (who saw which price, and the propensity) and outcome
+        logs (who bought, refunded, or left) land in a lakehouse. Here that
+        lake is local JSONL files. In production it is Iceberg/Delta on S3.
+    - title: Turn logs into a training table
+      detail: >
+        We join outcomes onto decisions, compute a reward (default: margin),
+        hide rows that are still waiting for a purchase, and refuse rows
+        with a missing propensity — those cannot be used for honest
+        off-policy evaluation.
+    - title: Train, then prove it, then ship
+      detail: >
+        A causal model learns expected reward. A bandit update refreshes
+        exploration posteriors. OPE estimates the new policy’s value without
+        deploying it. The registry stores the artifact. The gate says yes
+        or no. Yes means shadow → canary → ramp, never a big-bang cutover.
+  try: Open Ingestion and seed history, then walk the tabs in order. This overview refreshes the lake counts.
+
+- id: ol_ingest
+  number: 1
+  title: Ingestion
+  tagline: Land decisions and outcomes in the lake, once each.
+  about: >
+    Two streams matter most: pricing.decisions.v1 (the experience tuple)
+    and pricing.outcomes.v1 (view, cart, purchase, refund). Ingestion is
+    boring on purpose. If we double-count a decision or drop a schema, every
+    later number is a lie.
+  in_short: >
+    Read logs, drop PII, keep the first copy of each decision_id, quarantine
+    broken rows, accept late outcomes.
+  process:
+    - title: Read the decision topic
+      detail: >
+        Each row is one checkout price: context features, candidate arms,
+        chosen arm, propensity, version pins, degraded flag. We also pull
+        any live JSONL the online service already wrote.
+    - title: Deduplicate by decision_id
+      detail: >
+        Kafka is at-least-once. The same decision may arrive twice. We keep
+        the first and count the rest as duplicates. Training on duplicates
+        would pretend we had more data than we do.
+    - title: Quarantine schema mismatches
+      detail: >
+        A row without decision_id, chosen_arm, or propensity cannot join or
+        evaluate. It goes to a quarantine table and an alert, not into the
+        training set.
+    - title: Store outcomes separately
+      detail: >
+        Purchases may arrive hours later. They live in their own table keyed
+        by the same decision_id so the next job can upsert a late refund
+        without rewriting history incorrectly.
+  try: Set “seed decisions” to 80 and run. You should see inserted decisions plus simulated purchases.
+
+- id: ol_join
+  number: 2
+  title: Join & labeling
+  tagline: Attach “did they buy?” and compute the reward.
+  about: >
+    A decision without an outcome is half a sentence. This job left-joins
+    outcomes onto decisions and writes a single number the models optimize:
+    the reward. Default reward is margin. You can switch to revenue or a
+    composite to see how labels change.
+  in_short: >
+    Join on decision_id, apply an attribution window, net out refunds, clip
+    bad propensities, mask rows that are still too new to judge.
+  process:
+    - title: Join decisions to outcomes
+      detail: >
+        One decision can have several events (view, cart, purchase, refund).
+        We take the first purchase as the main outcome. A later refund
+        subtracts from revenue and margin so we do not celebrate a sale that
+        came back.
+    - title: Respect the attribution window
+      detail: >
+        A purchase counted for 7 days, a refund for 30. If the decision is
+        only two hours old and nobody bought yet, the row is censored — we
+        do not treat “no purchase yet” as “will never buy”. Those rows are
+        hidden from training until the window closes.
+    - title: Compute the pinned reward
+      detail: >
+        Margin = price − cost on a purchase (or 0). Revenue = price.
+        LTV-proxy down-weights high-churn shoppers. Composite blends the
+        three. The same window of data must not mix reward definitions.
+    - title: Validate propensity
+      detail: >
+        Propensity must sit in (0, 1]. Missing or zero → exclude from OPE.
+        Tiny values are clipped to ε (0.01) so 1/propensity does not explode.
+        Degraded online decisions are flagged so they do not teach the next
+        model the fallback policy.
+  try: Switch reward type from margin to revenue and compare the sample labels.
+
+- id: ol_backfill
+  number: 3
+  title: Feature backfill
+  tagline: Use features as they were at decision time — not today.
+  about: >
+    The online feature store shows who the customer is *now*. Training on
+    today’s LTV to explain yesterday’s purchase is leakage: the model peeks
+    at the future and looks brilliant offline, then fails live. We prefer
+    the features already logged on the decision.
+  in_short: >
+    Take logged context_features as the point-in-time vector x. Recompute
+    only to check we did not cheat.
+  process:
+    - title: Prefer the logged snapshot
+      detail: >
+        Stage 1 of the online service already stored x_raw at decision time.
+        That is the gold copy. We turn those fields into a numeric vector
+        with a fixed column order.
+    - title: Fill holes with old defaults, not new ones
+      detail: >
+        If a feature was missing then, we impute the segment default that
+        existed then — not today’s default. A new feature that cannot be
+        backfilled is dropped for that training window.
+    - title: Hunt for leakage
+      detail: >
+        If a recomputed “as-of” value disagrees with the log, we flag the
+        row. Future timestamps or TTL violations are the usual culprits.
+        A high mismatch rate means stop training and fix the feature job.
+  try: Run after join. Leakage should be ~0 because this demo trains on the logged snapshot.
+
+- id: ol_causal
+  number: 4
+  title: Causal training
+  tagline: Fit E[reward | person, price] for the online scorer.
+  about: >
+    This is the model the online service calls in Stage 4. We fit how
+    reward changes with the discount, after correcting for the fact that
+    the old policy already preferred some arms. The default recipe is a
+    DR-learner: an outcome model plus an inverse-propensity correction.
+  in_short: >
+    On uncensored, non-degraded rows, fit μ(x, a) with cross-fitting, then
+    a treatment-effect model τ(x) versus list price.
+  process:
+    - title: Build the matrices
+      detail: >
+        X is the point-in-time feature vector. A is the arm we actually
+        showed. Y is the reward. P is the logged propensity. Degraded and
+        censored rows stay out. Arms with too few samples are dropped or
+        merged so we do not fit noise.
+    - title: Fit an outcome model
+      detail: >
+        A ridge S-learner predicts reward from [features + one-hot arm].
+        We cross-fit: train on one half, predict the other, so the next
+        step does not use a model that already memorized the same row.
+    - title: Build the DR pseudo-outcome
+      detail: >
+        For each arm versus list price we form μ(target) − μ(baseline) +
+        (Y − μ(chosen)) / propensity. If either the outcome model or the
+        propensity is roughly right, this estimate of uplift is honest.
+    - title: Fit τ and package the artifact
+      detail: >
+        A second ridge model predicts that pseudo-outcome from X. We store
+        model_id, arm list, coefficients, R², and sample counts. That file
+        is what OPE and the registry will judge.
+  try: Train DR-learner, then S-learner. Compare R² and per-arm τ. Raise min samples to drop rare arms.
+
+- id: ol_bandit
+  number: 5
+  title: Bandit update
+  tagline: Refresh how eagerly we explore each discount.
+  about: >
+    Online Thompson sampling carries a posterior per arm (θ, A⁻¹). The
+    streaming update is fast and noisy. The nightly job rebuilds those
+    posteriors from the full weighted history so one unlucky day does not
+    dominate.
+  in_short: >
+    For each arm, solve a weighted ridge regression of reward on x, with
+    weights 1 / propensity, and store θ and the effective sample size.
+  process:
+    - title: Gather the history for each arm
+      detail: >
+        Rows are split by the arm that was actually shown. An arm we never
+        explored keeps a prior (identity matrix) so it still has a chance
+        tomorrow.
+    - title: Weight by inverse propensity
+      detail: >
+        Rarely chosen arms are up-weighted. That counters the old policy’s
+        taste. A ridge term keeps the matrix invertible when two features
+        move together.
+    - title: Write posteriors the online service can load
+      detail: >
+        θ̂ = A⁻¹ b is the new mean. Effective sample size tells us whether
+        an arm is still in “explore” (high σ) or “mature” (low σ). Drift
+        can reset σ when the world changes.
+  try: Run after causal training. Check effective_sample_size per arm — tiny ESS means that arm is still under-explored.
+
+- id: ol_ope
+  number: 6
+  title: OPE evaluation
+  tagline: Estimate a new policy’s value without putting it in front of shoppers.
+  about: >
+    Off-policy evaluation is the reason we logged propensity. We ask:
+    “If we had used the candidate policy on last week’s traffic, what
+    reward would we have earned?” If the answer is not clearly better —
+    with a confidence interval and enough effective samples — the model
+    does not ship.
+  in_short: >
+    Score the candidate with IPS, SNIPS, DM, or DR (default). Bootstrap a
+    95% CI. Reject if ESS is too small or arms do not overlap the log.
+  process:
+    - title: Define logging vs candidate
+      detail: >
+        π₀ is the old policy (logged propensity). π₁ is the candidate:
+        exploit (always take the new model’s best arm) or ε-greedy. The
+        importance weight is π₁(x, a) / π₀(x, a) on the arm we actually
+        showed.
+    - title: Run several estimators
+      detail: >
+        IPS is unbiased and noisy. SNIPS shrinks that noise. DM uses only
+        the outcome model and can be biased. DR mixes them and is unbiased
+        if either piece is right. That is why DR is the default gate input.
+    - title: Check the diagnostics
+      detail: >
+        Effective sample size must be at least 10% of N. Max weight ≤ 100.
+        Every arm the candidate loves must have appeared in the logs.
+        Fail any of those and we do not trust the number — we extend the
+        data window instead of guessing.
+  try: Compare estimator=dr vs ips, and candidate=exploit vs logging. Logging should land near the mean observed reward.
+
+- id: ol_registry
+  number: 7
+  title: Model registry
+  tagline: Remember what we trained, on which data, with which scores.
+  about: >
+    A pickle on a laptop is not a production model. The registry (MLflow
+    in production, a JSON file here) stores the artifact, its metrics,
+    and its lineage: data hash, reward definition, OPE report, code
+    version. No lineage, no promotion.
+  in_short: >
+    Register the causal + bandit artifacts as Staging. Promotion to
+    Production is the gate’s job, not a human copying files.
+  process:
+    - title: Write the bundle
+      detail: >
+        One record holds model_id, type, coefficients, bandit posteriors,
+        and the latest OPE report. Duplicate ids are versioned rather than
+        overwritten.
+    - title: Attach lineage
+      detail: >
+        Training window, sample count, and metric snapshot travel with the
+        file. If those fields are missing, the gate must refuse. We need
+        to answer “what data made this model?” a month from now.
+    - title: Move through stages
+      detail: >
+        None → Staging (training succeeded) → Production (OPE + canary
+        succeeded) → Archived (superseded). Rollback is “point traffic at
+        the previous Production record”.
+  try: Run after OPE. You should see a new Staging record. The gate tab decides whether it becomes Production.
+
+- id: ol_gate
+  number: 8
+  title: Deployment gate
+  tagline: Only ship if it is better, sure, fair, and fast.
+  about: >
+    Training success is not a deploy. The gate is a checklist: OPE value
+    above current, confidence interval clears the current value, ESS is
+    healthy, fairness gap is small, p99 latency still fits the budget,
+    schema still matches. Fail any box and we keep the live model.
+  in_short: >
+    all(checks) → promote and start shadow/canary. Otherwise stay on
+    current. Live regressions auto-rollback.
+  process:
+    - title: Score the checklist
+      detail: >
+        OPE better, OPE significant (CI lower bound > current), ESS ratio
+        ≥ 0.1, fairness gap < 5%, latency p99 < 100ms, schema compatible.
+        A tie keeps the current model. An inconclusive CI means “get more
+        days of log”, not “ship and hope”.
+    - title: Climb the rollout ladder
+      detail: >
+        Shadow (log only) → 1% canary → 5% → 25% → 50% → 100%. Each step
+        watches live margin, conversion, errors, and fairness against a
+        holdout. This lab stops at the decision and shows the planned
+        ladder.
+    - title: Arm the rollback
+      detail: >
+        If live reward drops more than 5%, p99 exceeds 150ms, errors
+        exceed 1%, fairness breaks, or propensity drift (PSI) exceeds
+        0.25, traffic snaps back to the previous Production artifact.
+  try: Run the gate on a freshly registered model. If OPE is not clearly better, you will see keep_current and the failing check.
+
+- id: ol_reward
+  number: null
+  title: Reward modeler
+  tagline: Pin what Y means for this training window.
+  about: >
+    Revenue, margin, LTV-proxy, and composite are different questions.
+    This job recomputes Y under one definition and stores the contract
+    so causal training and OPE cannot silently mix rewards.
+  in_short: Re-label the training table with one pinned reward definition.
+  process:
+    - title: Choose the definition
+      detail: Margin is default. Revenue ignores cost. LTV down-weights churn. Composite blends them.
+    - title: Rewrite Y
+      detail: Every labeled row gets the new reward. Degraded rows stay excluded.
+  try: Switch to revenue and compare mean_reward to the margin run.
+
+- id: ol_fairness
+  number: null
+  title: Fairness parity
+  tagline: Watch price gaps across segments — not as model features.
+  about: >
+    Protected or sensitive groupings are logged for audit and never fed
+    to the scorer. If average price diverges more than 5% across
+    segments, the deployment gate should fail.
+  in_short: Compare mean price and reward by segment. Flag a gap ≥ 5%.
+  process:
+    - title: Group the backfill table
+      detail: Segment is the demo grouping. Production would use a separately stored audit attribute.
+    - title: Measure the gap
+      detail: (max mean price − min mean price) / midpoint. Under 0.05 passes.
+  try: Run after backfill. Inspect group_price_mean for guest vs VIP.
+
+- id: ol_drift
+  number: null
+  title: Drift (PSI)
+  tagline: Did the world move under the model?
+  about: >
+    Population Stability Index on features and propensity, older half vs
+    newer half. PSI ≥ 0.2 means stop and retrain or widen exploration.
+    Logging-broken systems should disable exploration entirely.
+  in_short: PSI per feature plus propensity. drift_ok if max PSI < 0.2.
+  process:
+    - title: Split the log in time
+      detail: First half is expected. Second half is actual.
+    - title: Histogram and PSI
+      detail: Sum (actual − expected) × log(actual / expected) per bin.
+  try: Needs ≥ 16 backfill rows. Seed 80 decisions first.
+
+- id: ol_rollout
+  number: null
+  title: Rollout
+  tagline: Shadow → canary → ramp, with a kill switch.
+  about: >
+    A Production artifact does not go to 100% traffic. Shadow logs only.
+    Canary 1% then 5%, then 25/50/100. A reward drop > 5%, p99 > 150ms,
+    or error rate > 1% snaps back to shadow.
+  in_short: Advance the ladder or force a rollback. Serving swaps RegistryScorer into the cache.
+  process:
+    - title: Advance one step
+      detail: shadow → canary_1 → canary_5 → ramp_25 → ramp_50 → full_100.
+    - title: Watch live KPIs
+      detail: Simulate a drop with reward_drop to see auto-rollback.
+  try: Promote via the gate first. Then advance. Set reward_drop to 0.08 to roll back.
+

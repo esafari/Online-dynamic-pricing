@@ -1,0 +1,250 @@
+skus:
+  SKU-1234:
+    name: Wireless earbuds
+    list_price: 50.00
+    cost: 28.00
+    msrp: 59.99
+    map: 44.99
+    currency: USD
+    discountable: true
+    category: audio
+    stock: 140
+    competitor_price: 48.00
+  SKU-VIP:
+    name: Premium headphones
+    list_price: 199.00
+    cost: 90.00
+    msrp: 229.00
+    map: 169.00
+    currency: USD
+    discountable: true
+    category: audio
+    stock: 22
+    competitor_price: 189.00
+  SKU-CASE:
+    name: Leather phone case
+    list_price: 29.00
+    cost: 8.00
+    msrp: 34.99
+    map: 19.99
+    currency: USD
+    discountable: true
+    category: accessories
+    stock: 86
+    competitor_price: 27.00
+  SKU-LOW:
+    name: USB-C cable
+    list_price: 12.00
+    cost: 9.80
+    msrp: 14.99
+    map: 11.00
+    currency: USD
+    discountable: true
+    category: accessories
+    stock: 8
+    competitor_price: 11.50
+  SKU-LOCKED:
+    name: Limited edition speaker
+    list_price: 320.00
+    cost: 140.00
+    msrp: 320.00
+    map: 320.00
+    currency: USD
+    discountable: false
+    category: audio
+    stock: 4
+    competitor_price: 310.00
+category_avg_cost:
+  audio: 70.0
+  accessories: 8.0
+  default: 20.0
+customers:
+  c_maya:
+    unified_customer_id: c_maya
+    display_name: Maya Chen
+    persona: Returning shopper
+    headline: Two past orders, moderately price-sensitive
+    segment: returning
+    acquisition_channel: organic
+    geo_band: CA-ON
+    age_band: "25-34"
+    consent_personalization: true
+    bot_score: 0.05
+    features:
+      sessions_7d: 3
+      pageviews_7d: 42
+      cart_abandons_30d: 1
+      orders_lifetime: 2
+      aov_lifetime: 45.2
+      recency_days: 12
+      discount_uses_30d: 0
+      price_sensitivity_score: 0.63
+      churn_risk: 0.18
+      ltv_predicted: 210.0
+  c_james:
+    unified_customer_id: c_james
+    display_name: James Cole
+    persona: VIP
+    headline: High LTV, low price sensitivity — prefers list-price treatment
+    segment: vip
+    acquisition_channel: paid
+    geo_band: CA-ON
+    age_band: "35-44"
+    consent_personalization: true
+    bot_score: 0.02
+    features:
+      sessions_7d: 8
+      pageviews_7d: 90
+      cart_abandons_30d: 0
+      orders_lifetime: 18
+      aov_lifetime: 160.0
+      recency_days: 4
+      discount_uses_30d: 0
+      price_sensitivity_score: 0.22
+      churn_risk: 0.05
+      ltv_predicted: 980.0
+  c_priya:
+    unified_customer_id: c_priya
+    display_name: Priya Shah
+    persona: At-risk
+    headline: 80 days since last order, high churn and high sensitivity
+    segment: at_risk
+    acquisition_channel: email
+    geo_band: CA-BC
+    age_band: "25-34"
+    consent_personalization: true
+    bot_score: 0.10
+    features:
+      sessions_7d: 1
+      pageviews_7d: 6
+      cart_abandons_30d: 3
+      orders_lifetime: 4
+      aov_lifetime: 38.0
+      recency_days: 80
+      discount_uses_30d: 1
+      price_sensitivity_score: 0.81
+      churn_risk: 0.72
+      ltv_predicted: 95.0
+  c_alex:
+    unified_customer_id: c_alex
+    display_name: Alex Rivera
+    persona: No consent
+    headline: Returning customer who opted out of personalization
+    segment: returning
+    acquisition_channel: organic
+    geo_band: CA-ON
+    age_band: "25-34"
+    consent_personalization: false
+    bot_score: 0.04
+    features:
+      sessions_7d: 5
+      pageviews_7d: 20
+      cart_abandons_30d: 0
+      orders_lifetime: 3
+      aov_lifetime: 70.0
+      recency_days: 20
+      discount_uses_30d: 0
+      price_sensitivity_score: 0.40
+      churn_risk: 0.12
+      ltv_predicted: 240.0
+  c_noah:
+    unified_customer_id: c_noah
+    display_name: Noah Kim
+    persona: New / cold start
+    headline: First session, no history — uses segment defaults
+    segment: new
+    acquisition_channel: paid
+    geo_band: CA-QC
+    age_band: "18-24"
+    consent_personalization: true
+    bot_score: 0.08
+    features: {}
+  c_91823:
+    unified_customer_id: c_91823
+    display_name: Maya Chen
+    persona: Returning shopper
+    headline: Alias of c_maya for the original sample request
+    segment: returning
+    acquisition_channel: organic
+    geo_band: CA-ON
+    age_band: "25-34"
+    consent_personalization: true
+    bot_score: 0.05
+    hidden: true
+    features:
+      sessions_7d: 3
+      pageviews_7d: 42
+      cart_abandons_30d: 1
+      orders_lifetime: 2
+      aov_lifetime: 45.2
+      recency_days: 12
+      discount_uses_30d: 0
+      price_sensitivity_score: 0.63
+      churn_risk: 0.18
+      ltv_predicted: 210.0
+  c_vip:
+    unified_customer_id: c_vip
+    display_name: James Cole
+    persona: VIP
+    hidden: true
+    segment: vip
+    acquisition_channel: paid
+    geo_band: CA-ON
+    age_band: "35-44"
+    consent_personalization: true
+    bot_score: 0.02
+    features:
+      sessions_7d: 8
+      pageviews_7d: 90
+      cart_abandons_30d: 0
+      orders_lifetime: 18
+      aov_lifetime: 160.0
+      recency_days: 4
+      discount_uses_30d: 0
+      price_sensitivity_score: 0.22
+      churn_risk: 0.05
+      ltv_predicted: 980.0
+  c_risk:
+    unified_customer_id: c_risk
+    display_name: Priya Shah
+    persona: At-risk
+    hidden: true
+    segment: at_risk
+    acquisition_channel: email
+    geo_band: CA-BC
+    age_band: "25-34"
+    consent_personalization: true
+    bot_score: 0.10
+    features:
+      sessions_7d: 1
+      pageviews_7d: 6
+      cart_abandons_30d: 3
+      orders_lifetime: 4
+      aov_lifetime: 38.0
+      recency_days: 80
+      discount_uses_30d: 1
+      price_sensitivity_score: 0.81
+      churn_risk: 0.72
+      ltv_predicted: 95.0
+  c_noconsent:
+    unified_customer_id: c_noconsent
+    display_name: Alex Rivera
+    persona: No consent
+    hidden: true
+    segment: returning
+    acquisition_channel: organic
+    geo_band: CA-ON
+    age_band: "25-34"
+    consent_personalization: false
+    bot_score: 0.04
+    features:
+      sessions_7d: 5
+      pageviews_7d: 20
+      cart_abandons_30d: 0
+      orders_lifetime: 3
+      aov_lifetime: 70.0
+      recency_days: 20
+      discount_uses_30d: 0
+      price_sensitivity_score: 0.40
+      churn_risk: 0.12
+      ltv_predicted: 240.0

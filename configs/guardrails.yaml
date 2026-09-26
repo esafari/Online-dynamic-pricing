@@ -1,0 +1,60 @@
+version: gr_v12
+min_margin: 0.15
+map_enabled: true
+competitor_band: 0.10
+frequency_cap_30d: 2
+inventory_safety_threshold: 10
+bot_score_max: 0.8
+fairness_price_gap: 0.08
+badge_min_discount: 0.05
+priority:
+  - legal
+  - fairness
+  - margin
+  - frequency
+  - operational
+rules:
+  - id: price_floor
+    kind: static
+    priority: margin
+    reason: margin_floor
+  - id: price_ceiling
+    kind: static
+    priority: legal
+    reason: above_msrp
+  - id: map
+    kind: static
+    priority: legal
+    reason: below_map
+  - id: sku_eligibility
+    kind: static
+    priority: legal
+    reason: not_discountable
+  - id: campaign_window
+    kind: static
+    priority: operational
+    reason: outside_campaign
+  - id: frequency_cap
+    kind: dynamic
+    priority: frequency
+    reason: freq_cap
+  - id: inventory
+    kind: dynamic
+    priority: operational
+    reason: low_inventory
+  - id: competitor_bound
+    kind: dynamic
+    priority: operational
+    reason: competitor_bound
+  - id: anti_abuse
+    kind: dynamic
+    priority: legal
+    reason: bot_score
+  - id: consent
+    kind: dynamic
+    priority: legal
+    reason: no_consent
+  - id: fairness_parity
+    kind: dynamic
+    priority: fairness
+    reason: fairness_gap

@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Azure implementation — Personalized Pricing System</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #171d24;
+      --panel-2: #1d252e;
+      --line: #2a3440;
+      --text: #e8eef4;
+      --muted: #93a1b0;
+      --accent: #3ecf8e;
+      --accent-2: #7dd3fc;
+      --warn: #f5b942;
+      --bad: #f07178;
+      --shadow: 0 16px 40px rgba(0,0,0,.32);
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    html.embed header, html.embed nav.toc { display: none; }
+    html.embed .layout { display: block; padding: 8px 10px 32px; }
+    html.embed body { background: #0f1419; }
+    body {
+      margin: 0; color: var(--text);
+      font-family: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+      background:
+        radial-gradient(1100px 520px at 8% -8%, rgba(62,207,142,.12), transparent 50%),
+        radial-gradient(800px 480px at 100% 0%, rgba(125,211,252,.10), transparent 42%),
+        var(--bg);
+    }
+    header {
+      position: sticky; top: 0; z-index: 20;
+      display: flex; justify-content: space-between; align-items: center; gap: 16px;
+      padding: 14px 20px; background: rgba(15,20,25,.92);
+      border-bottom: 1px solid var(--line); backdrop-filter: blur(10px);
+    }
+    .brand h1 { margin: 0; font-size: 1.05rem; }
+    .brand p { margin: 3px 0 0; color: var(--muted); font-size: .82rem; }
+    .progress { color: var(--muted); font-size: .8rem; }
+    .progress b { color: var(--accent); }
+    .layout { display: grid; grid-template-columns: 250px 1fr; gap: 18px; padding: 16px 20px 64px; }
+    @media (max-width: 980px) { .layout { grid-template-columns: 1fr; } nav.toc { position: static; } }
+    nav.toc { position: sticky; top: 78px; align-self: start; display: grid; gap: 4px; max-height: calc(100vh - 96px); overflow: auto; }
+    nav.toc a {
+      color: var(--muted); text-decoration: none; font-size: .78rem;
+      padding: 6px 10px; border-radius: 8px; border: 1px solid transparent;
+    }
+    nav.toc a:hover, nav.toc a.active { color: var(--text); border-color: var(--line); background: var(--panel); }
+    article { max-width: 980px; }
+    section.card {
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: var(--radius); box-shadow: var(--shadow);
+      padding: 22px 24px 26px; margin: 0 0 18px;
+    }
+    h2 { margin: 0 0 10px; font-size: 1.25rem; }
+    h3 { margin: 22px 0 8px; font-size: 1.02rem; color: #d7eee3; }
+    section.card p { line-height: 1.7; margin: 0 0 14px; }
+    section.card p:last-child { margin-bottom: 0; }
+    p.lead { color: var(--muted); margin-top: 0; }
+    .callout {
+      background: #193226; border: 1px solid rgba(62,207,142,.28);
+      border-radius: 12px; padding: 10px 12px; font-size: .92rem;
+    }
+    .warnbox {
+      background: #2a2416; border: 1px solid rgba(245,185,66,.35);
+      border-radius: 12px; padding: 10px 12px; font-size: .92rem; color: #f3e6c2;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; font-size: .75rem; letter-spacing: .04em; text-transform: uppercase; }
+    .chip { display: inline-block; background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; font-size: .72rem; color: var(--accent-2); }
+    pre {
+      background: #0c1014; border: 1px solid var(--line); border-radius: 12px;
+      padding: 12px 14px; overflow: auto; font-size: .8rem; line-height: 1.45; position: relative;
+    }
+    code { font-family: Consolas, "Cascadia Mono", ui-monospace, monospace; }
+    button.copy {
+      position: absolute; top: 8px; right: 8px; font-size: .7rem;
+      background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+      border-radius: 8px; padding: 4px 8px; cursor: pointer;
+    }
+    label.step {
+      display: flex; gap: 10px; align-items: flex-start;
+      background: var(--panel-2); border: 1px solid var(--line);
+      border-radius: 10px; padding: 10px 12px; margin: 8px 0;
+    }
+    label.step input { margin-top: 4px; }
+    label.step.done { opacity: .72; }
+    .phase { color: var(--accent); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 6px; }
+    .diagram {
+      font-family: Consolas, ui-monospace, monospace; font-size: .72rem;
+      background: #0c1014; border: 1px solid var(--line); border-radius: 12px;
+      padding: 14px; overflow: auto; white-space: pre; line-height: 1.35; color: #c9e8d8;
+    }
+    ol.weeks { margin: 0; padding-left: 18px; }
+    .down { text-align: center; color: var(--accent); font-weight: 700; margin: 6px 0; letter-spacing: .2em; }
+    .boxes { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+    .box {
+      background: var(--panel-2); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px;
+    }
+    .box h4 { margin: 0 0 6px; font-size: .95rem; color: var(--text); }
+    .box .tool { color: var(--accent-2); font-size: .75rem; margin-bottom: 6px; }
+    .box p { margin: 0; color: var(--muted); font-size: .84rem; }
+    .kid { font-size: 1.02rem; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1>Personalized Pricing System — Azure implementation</h1>
+      <p>Canada Central · a readable runbook, with commands where you need them</p>
+    </div>
+    <div class="progress">Done <b id="doneCount">0</b> / <span id="totalCount">0</span></div>
+  </header>
+  <div class="layout">
+    <nav class="toc" id="toc"></nav>
+    <article>
+
+<section class="card" id="kids">
+  <p class="phase">Overview</p>
+  <h2>What this project is, and what Azure adds</h2>
+  <p>The Pricing Decision Service answers a single operational question: given this shopper, this SKU, and this moment, what price should we show, and how do we learn from that choice later? That question is already implemented in this repository. A request is ingested, identity and features are resolved, guardrails drop illegal prices, a causal model scores what remains, a bandit selects an arm, a coupon is bound, the decision is logged with a propensity, and the client receives only a safe JSON body. Azure does not rewrite that sequence. It is the production platform around it: a place to run the process, remember features, store catalog and coupons, carry logs, train overnight, and freeze discounts without a new build.</p>
+  <p>On your laptop the same stages run in FastAPI with a YAML catalog, an in-memory feature store, and JSONL files. In Azure those adapters point at managed services in Canada Central so personal data stays in Canada. A public channel still calls <code>POST /v1/price</code>. Front Door terminates TLS and filters bots; API Management authenticates and rate-limits, and it keeps internal routes such as <code>/v1/price:explain</code> off the internet. Container Apps runs this FastAPI app with a p99 target under 100 ms. During that call the service reads online features from Redis and catalog or identity from Cosmos DB, applies guardrails, scores arms, picks one, and writes a redeemable offer. The shopper sees a price, a badge, a coupon, reason codes, and a <code>decision_id</code>. Propensity and model identifiers never leave on that response.</p>
+  <p>After the response, Event Hubs records the experience tuple of context, action, propensity, and versions without blocking checkout. A later purchase or refund is posted to the outcomes hub keyed by the same <code>decision_id</code>. Capture lands in ADLS. Offline jobs join those streams, reconstruct point-in-time features, train, and run off-policy evaluation. Azure ML registers a candidate only if that estimate beats the current policy and the fairness and drift gates pass. A new Container Apps revision is then opened in shadow, given a slice of traffic, and either ramped or rolled back. App Configuration can force list price on the next request if legal or merchandising needs an immediate freeze. App Insights is what tells you the new revision is slow or incomplete so you can send traffic back to the last good one.</p>
+  <label class="step"><input type="checkbox" data-k="kids-story" /><span>I understand Azure hosts this PDS; it does not replace the causal or bandit code.</span></label>
+</section>
+
+<section class="card" id="components">
+  <p class="phase">Bill of materials</p>
+  <h2>All Azure components for this project</h2>
+  <p>You do not provision this list on day one. You grow it in the same order the system itself depends on: a place to run, then a way to change rules and hide secrets, then the two stores on the hot path, then a log that never lies about propensity, then overnight training, and only then a public door. Every database, cache, and log that holds shopper or decision data is created in Canada Central. When you connect these services, you change adapters under <code>services/</code>. You do not rewrite the causal model or the bandit.</p>
+  <h3>Foundation</h3>
+  <p>Start with a dedicated development subscription and the Entra directory that comes with it. That subscription is the billing and permission root; production pricing data should never live in a personal account. Sign in with <code>az login</code> and confirm you have Contributor. People use Entra to open the portal and the CLI; the Container App later uses a managed identity in the same directory so GitHub never holds a long-lived client secret. Create one resource group in Canada Central and put everything for this environment inside it, because deleting that group is how you stop paying. On the same day, set a Cost Management budget that emails you at a modest cap. A budget warns; it does not always shut resources off. Finally create a single Log Analytics workspace for the environment. Container Apps, App Insights, and later APIM should all write there. Several workspaces make simple questions impossible to ask.</p>
+  <h3>Hosting</h3>
+  <p>Azure Container Registry is the private shelf for Docker images of this app. Names are globally unique. Basic SKU is enough in development; production can move to Standard or Premium and, later, a replica in Canada East. A Container Apps environment is the cluster those images join, and you attach Log Analytics when you create it. The Container App itself is this FastAPI process: stages 0 through 10, a small CPU and memory footprint at first, replicas when traffic grows, and revisions so a new policy can take one percent of calls without replacing the old one. In development ingress can be external so you can open a browser; in production it should be internal behind API Management, and <code>/v1/price:explain</code>, <code>/v1/control</code>, and admin reload must never be on the public product. A Container Apps Job is the same codebase on a schedule for campaign lists. Do not fire thousands of single HTTP calls from Logic Apps with no backpressure. Do not begin on AKS or App Service. Container Apps is the host until you have a platform team and a scale problem that revisions cannot solve.</p>
+  <h3>Config and secrets</h3>
+  <p>Give the Container App a system-assigned managed identity and grant that identity roles, rather than baking Cosmos or Redis keys into environment variables. Key Vault holds the remaining secrets: Redis URL, Event Hubs send string, App Insights connection string, Cosmos key until you switch the SDK to Entra. Use RBAC on the vault, not a mix of access policies. App Configuration is the live rulebook that used to be <code>control_plane.yaml</code> and <code>versions.yaml</code>: kill switch, merchandiser freeze, policy and model pins, daily discount budget. Those flags must refresh in seconds. If App Configuration cannot be read, fail closed to list price using a cache no older than a minute. Free SKU is fine in development; production wants Standard and a replica in Canada East.</p>
+  <h3>Online data plane</h3>
+  <p>Two stores sit on the request. Redis, on TLS port 6380, is the millisecond cache that replaces the in-memory feature store and sticky-price map. Keys are short-lived: features, a sticky offer for shopper and SKU, frequency caps, and an incremented discount budget. If Redis is unavailable you still return a price from coarser defaults, because checkout cannot wait. Basic C0 is enough to learn the adapter; production should be Premium, zone redundant, and private. Cosmos DB is the system of record that replaces <code>catalog.yaml</code>, identity profiles, the coupon list, and decision lookup. Use separate containers partitioned on sku, customer_id, offer code, and customer_id again for decisions. Serverless is the right development SKU. Production should autoscale, back up, and fail over to Canada East. A coupon in Cosmos is a promise: a later policy change must not void a code already shown.</p>
+  <h3>Streaming and lakehouse</h3>
+  <p>Decision logs are telemetry, not a command queue, which is why Event Hubs with Kafka enabled replaces the JSONL buffer and Service Bus does not. One hub, <code>pricing.decisions.v1</code>, receives every <code>decide()</code> with propensity, policy id, candidate-set version, and experiment variant. Another, <code>pricing.outcomes.v1</code>, receives purchase, refund, and return keyed by <code>decision_id</code>, joined later on a seven-day window net of refunds. Joining only on customer_id will mix people and ruin OPE. Schema Registry versions that JSON so a silent field drop cannot poison training. ADLS Gen2 with hierarchical namespace is the lake: bronze for raw capture, silver for joined point-in-time rows, gold for OPE and campaigns. A plain blob account without HNS will fight Spark. Event Hubs Capture writes bronze on a timer so you do not need a custom consumer on day one. Keep capture in the same region. If the hub is down, buffer locally and stop exploring until it returns, or the propensities you log will be fiction.</p>
+  <h3>Machine learning</h3>
+  <p>Training never runs inside the online Container App. Azure ML is the workspace that replaces <code>data/registry/models.json</code> and laptop jobs: you submit causal, bandit, and OPE work, keep lineage, and register a model only when OPE beats the current policy and fairness and drift are acceptable. Serverless compute is enough for the numpy learners in this repo. A GPU cluster is a later choice and a common way to leave money running overnight. When joins no longer fit a single node, Microsoft Fabric or Azure Databricks in Canada Central reads the same ADLS paths that <code>offline/join.py</code> and <code>backfill.py</code> use today. The standing risk is training on “current” features instead of the values as of the decision timestamp.</p>
+  <h3>Public edge</h3>
+  <p>Skip Front Door and API Management until a real channel is calling you. Then Front Door Premium is the anycast door with TLS, bot manager, origin health, and a Canada POP. Point it at APIM or the app, never at the explain endpoint. Put the WAF in Detection for a week, then Prevention, with an allowlist for partner IPs. API Management is the product split that used to live in <code>gateway.py</code>: public price, checkout outcomes, CS lookup, and an internal product for explain and control. Developer SKU has no SLA; production should be Standard v2 or Premium on a VNet.</p>
+  <h3>Observability and rollback</h3>
+  <p>A bandit you cannot measure is just random prices. Application Insights, created against the same Log Analytics workspace, replaces in-process counters for production: duration of <code>/v1/price</code>, calls out to Redis and Cosmos, exceptions. Do not log propensity or PII in custom events; <code>decision_id</code> is enough on the public path. Metric alerts and an action group with a named owner fire on slow p99, 5xx, a gap between requests and Event Hub ingress, a stale kill switch, or a fairness gap. A workbook later fills the role of the lab Monitor tab: reward versus predicted value, propensity PSI, segment price gaps, logging completeness. Sampled telemetry makes those charts lie.</p>
+  <h3>Security and Canada</h3>
+  <p>In production, Redis, Cosmos, Key Vault, Storage, and Event Hubs should not have public endpoints. A VNet, private endpoints, and Container Apps integration are required, and DNS must be in place or the app will hang on names. Purview scans ADLS, classifies PII, and is how you show PIPEDA evidence that bronze decisions are not a free-for-all. Protected attributes used for audit must never enter the feature vector. Defender for Cloud watches for a public Cosmos account, Redis without TLS, and vulnerable images in ACR. Do not ship an image the registry has already flagged.</p>
+  <h3>CI/CD</h3>
+  <p>GitHub Actions with Entra OIDC is how a commit becomes a revision: tests, image, push to ACR, Container Apps update. Failed pytest must not deploy. Do not put <code>AZURE_CLIENT_SECRET</code> in GitHub. Federate the app registration and use <code>azure/login</code> with the federated token.</p>
+  <h3>What to leave alone</h3>
+  <p>AKS is a later host if Container Apps and a platform team cannot meet a sustained ten thousand decisions a second with a mesh you truly need. App Service slots are not a substitute for a propensity-logged canary. Service Bus is fine for occasional commands, not for this telemetry. Azure Communication Services is optional if you have no email provider; even then, never send a price that is not already in the offer ledger.</p>
+  <label class="step"><input type="checkbox" data-k="all-components" /><span>I have read this as a sequence, not a shopping cart, and I will not start on AKS or Service Bus.</span></label>
+</section>
+
+<section class="card" id="picture">
+  <p class="phase">Architecture</p>
+  <h2>How the pieces sit together</h2>
+  <p>A shopper on web, app, email, or a till never talks to Python directly. The call arrives at Front Door, which is the public door: TLS, geography, and a WAF that should absorb bots so the bandit does not waste exploration on scrapers. API Management sits behind that door and decides who may ask for a price. The product that channels use exposes <code>POST /v1/price</code> and nothing that leaks scores. Explain, control, and admin stay on an internal product.</p>
+  <p>The work itself runs on Container Apps. Azure Container Registry holds the Docker image of this repo; the app is a replica of that image, scaled out if the line gets long, and versioned as revisions so you can send one percent of traffic to a new policy without replacing the old one. While a request is in flight, App Configuration is the live rulebook for kill switch, freeze, and version pins, and Key Vault is where connection strings live. The process authenticates to both with a managed identity rather than a password in an environment variable.</p>
+  <p>Two stores are on the hot path. Redis is the desk cache: feature vectors, a sticky price for the same shopper and SKU, frequency caps, and a running discount budget, all with TTLs measured in seconds or minutes. If Redis is down you still answer, using coarser defaults, because checkout cannot wait. Cosmos DB is the cabinet of record: list price, MAP, cost, stock, the identity graph and consent flag, the coupon ledger that must still redeem after a policy change, and the decision row a CS agent looks up by <code>decision_id</code>.</p>
+  <p>Once a price has been returned, logging must not sit on the critical path. Event Hubs, with Kafka enabled so the existing topic design still makes sense, carries <code>pricing.decisions.v1</code> and <code>pricing.outcomes.v1</code>. Every decision event includes propensity and the version pins; without that, off-policy evaluation later is guesswork. Capture writes those events into ADLS Gen2 as bronze files. Nightly jobs turn bronze into silver training rows with point-in-time features, then gold OPE reports. Azure Machine Learning is where those jobs run and where a model is registered only if OPE, fairness, and drift agree. App Insights watches latency and completeness so a bad revision can be given zero traffic. All of that data plane stays in Canada Central; Canada East is for disaster recovery, not for cheaper training.</p>
+  <div class="diagram">This repo                              Azure
+--------------------------            --------------------------------
+FastAPI :8080                    →    Container Apps
+gateway.py                       →    Front Door + APIM
+feature_store.py                 →    Redis
+catalog.yaml + identity          →    Cosmos DB
+control_plane.yaml               →    App Configuration
+coupon / sticky                  →    Cosmos offers + Redis TTL
+decisions.jsonl                  →    Event Hubs
+data/lake/*.jsonl                →    ADLS Gen2
+offline/pipeline.py              →    Azure ML jobs
+models.json                      →    Azure ML registry
+metrics.py                       →    App Insights</div>
+  <label class="step"><input type="checkbox" data-k="kids-picture" /><span>I can explain the online path and the overnight path in a few sentences.</span></label>
+</section>
+
+<section class="card" id="tools">
+  <p class="phase">Tools</p>
+  <h2>The tools you actually touch</h2>
+  <p>On the laptop you only install two clients. Azure CLI is the remote control; almost every create and update in this runbook is an <code>az</code> command, and you start with <code>az login</code> so Azure knows which subscription to bill. PowerShell is the window you paste those commands into on this Windows machine. Docker packages the Python app as an image so Container Apps is not installing packages by hand; <code>docker build</code> and <code>docker push</code> are the two verbs that matter.</p>
+  <p>In the subscription, a resource group is the folder for an environment. Create everything inside <code>rg-pds-canadacentral-dev</code> (or whatever name you printed) and you can delete that folder to stop paying. ACR is the private registry that stores <code>pds-api</code> tags. Container Apps is the process host: replicas for load, revisions for canary. Log Analytics is the shared diary those replicas write to. Key Vault holds Redis, Cosmos, and Event Hubs credentials. App Configuration holds the kill switch and version pins that must change without a new image.</p>
+  <p>Redis is the millisecond cache for features and sticky prices. Cosmos DB is the document store for catalog, identity, and the offer ledger. Event Hubs is the stream that must see every decision with a propensity. ADLS Gen2 is the lake those streams become. Azure ML is where training and OPE run, and where a model is allowed into the registry. App Insights is the stopwatch and the alarm. Front Door and API Management are the public edge; skip them until a real channel is calling you, then put them in front so explain and control never face the internet.</p>
+  <label class="step"><input type="checkbox" data-k="kids-tools" /><span><code>az version</code> works and Docker Desktop is running.</span></label>
+</section>
+
+<section class="card" id="cli">
+  <p class="phase">CLI</p>
+  <h2>CLI commands</h2>
+  <p>Open PowerShell in the Pricing folder — the directory that contains <code>Dockerfile</code>. Do not paste connection strings into chat or screenshots; they belong in Key Vault. If you want Azure to walk you through login, build, and the first Container App, run the guided script. If you would rather see each resource appear, the same work is written out underneath. Stay in one window so the variables survive.</p>
+
+  <h3>Guided script</h3>
+  <pre><button class="copy">Copy</button><code>cd C:\Users\100990295\Desktop\CAnada_Kh_com_2026_02\Desctop\ML_Project\Pricing
+pwsh -File infra\cli-kids.ps1</code></pre>
+  <p>The script logs in, builds the image, deploys Container Apps, and prints an <code>https://</code> URL. Open that URL; it should be this lab.</p>
+
+  <h3>The same work, written out</h3>
+  <p>Sign in to the subscription that will be billed.</p>
+  <pre><button class="copy">Copy</button><code>az login
+az account show --query "{name:name, id:id}" -o table</code></pre>
+
+  <p>Set names once. Canada Central keeps data in Canada. ACR names must be globally unique, so a random suffix is appended.</p>
+  <pre><button class="copy">Copy</button><code>$Location = "canadacentral"
+$EnvName  = "dev"
+$Prefix   = "pds"
+$Suffix   = Get-Random -Minimum 1000 -Maximum 9999
+$RG       = "rg-$Prefix-$Location-$EnvName"
+$ACR      = ($Prefix + "acr" + $EnvName + $Suffix).ToLower()
+$ACA_ENV  = "cae-$Prefix-$EnvName"
+$APP      = "ca-$Prefix-api"
+$LA       = "log-$Prefix-$EnvName"
+Write-Host "RG=$RG  ACR=$ACR"</code></pre>
+
+  <p>Create the resource group — one container for every later resource, and the thing you delete when you want charges to stop.</p>
+  <pre><button class="copy">Copy</button><code>az group create --name $RG --location $Location</code></pre>
+
+  <p>Register providers once per subscription. There is no extra cost; it only means this subscription is allowed to create these kinds of things.</p>
+  <pre><button class="copy">Copy</button><code>az provider register --namespace Microsoft.App
+az provider register --namespace Microsoft.ContainerRegistry
+az provider register --namespace Microsoft.OperationalInsights</code></pre>
+
+  <p>Build and run locally so the image is known-good before Azure sees it.</p>
+  <pre><button class="copy">Copy</button><code>docker build -t pds-api:local .
+docker run --rm -p 8080:8080 pds-api:local</code></pre>
+  <p>Open <code>http://127.0.0.1:8080</code>, then stop the container with Ctrl+C.</p>
+
+  <p>Create the registry and push that image. ACR names are globally unique; the suffix from earlier is what makes yours available.</p>
+  <pre><button class="copy">Copy</button><code>az acr create -g $RG -n $ACR --sku Basic --admin-enabled true
+az acr login -n $ACR
+docker tag pds-api:local "$ACR.azurecr.io/pds-api:v0.1.0"
+docker push "$ACR.azurecr.io/pds-api:v0.1.0"</code></pre>
+
+  <p>Create logs, the Container Apps environment, and the app. Attach Log Analytics when you create the environment so you are not hunting for a diary later.</p>
+  <pre><button class="copy">Copy</button><code>az monitor log-analytics workspace create -g $RG -n $LA -l $Location
+$WS_ID  = az monitor log-analytics workspace show -g $RG -n $LA --query customerId -o tsv
+$WS_KEY = az monitor log-analytics workspace get-shared-keys -g $RG -n $LA --query primarySharedKey -o tsv
+
+az containerapp env create -n $ACA_ENV -g $RG -l $Location --logs-workspace-id $WS_ID --logs-workspace-key $WS_KEY
+
+az containerapp create `
+  --name $APP -g $RG --environment $ACA_ENV `
+  --image "$ACR.azurecr.io/pds-api:v0.1.0" `
+  --registry-server "$ACR.azurecr.io" `
+  --target-port 8080 --ingress external `
+  --cpu 0.5 --memory 1.0Gi `
+  --min-replicas 1 --max-replicas 3 `
+  --env-vars PDS_ENV=azure-dev PDS_HOST=0.0.0.0 PDS_PORT=8080
+
+$FQDN = az containerapp show -g $RG -n $APP --query properties.configuration.ingress.fqdn -o tsv
+Write-Host "OPEN https://$FQDN/"</code></pre>
+
+  <p>Verify health and a price call. You should see <code>"status":"ok"</code> and a JSON body with <code>price</code> and <code>decision_id</code>.</p>
+  <pre><button class="copy">Copy</button><code>curl "https://$FQDN/health"
+curl -s -X POST "https://$FQDN/v1/price" -H "Content-Type: application/json" -d "{\"customer_id\":\"c_maya\",\"sku\":\"SKU-1234\",\"cart_value\":50,\"mode\":\"exploit\"}"</code></pre>
+
+  <p>Add Key Vault and App Configuration so a kill switch can take effect without a new image.</p>
+  <pre><button class="copy">Copy</button><code>$KV = "kv-pds-dev-$Suffix"
+$APPCS = "appcs-pds-dev-$Suffix"
+az keyvault create -n $KV -g $RG -l $Location
+az appconfig create -n $APPCS -g $RG -l $Location --sku Free
+az appconfig feature set -n $APPCS --feature pds.kill_switch --description "Serve list price only"</code></pre>
+
+  <p>When you want charges to stop, delete the resource group. That removes everything you created inside it.</p>
+  <pre><button class="copy">Copy</button><code>az group delete --name $RG --yes --no-wait</code></pre>
+
+  <h3>After the first deploy</h3>
+  <p>Use the later Azure tabs for Redis, Cosmos, Event Hubs, and Azure ML. Swap adapters in <code>services/</code> only. Do not rewrite the causal or bandit stages.</p>
+  <label class="step"><input type="checkbox" data-k="kids-cli" /><span>Opened the HTTPS URL. Saved the resource group name. Health and a price call both succeeded.</span></label>
+</section>
+
+<section class="card" id="how">
+  <p class="phase">Start here</p>
+  <h2>How to use this file</h2>
+  <p>This is the implementation runbook for this repository, not a generic Azure brochure. Keep it open beside PowerShell. Check a box when the work is actually done; progress stays in this browser. You will first put the same FastAPI lab onto Container Apps, then point the local stand-ins at Redis, Cosmos, Event Hubs, ADLS, and Azure ML. The stage contract does not change: ingest, guardrails, causal, bandit, log.</p>
+  <p>On the laptop you need a development subscription where you have Contributor, Azure CLI after <code>az login</code> and <code>az account set</code>, Docker Desktop so <code>docker version</code> works, and the Python 3.11 environment this repo already uses. From the Pricing folder, <code>pip install -e ".[dev]"</code> then <code>pytest</code> should still report the same passing suite before you spend anything in Azure.</p>
+  <label class="step"><input type="checkbox" data-k="need-az" /><span>Azure subscription you can create resources in (Contributor). Prefer a <b>dev</b> subscription first.</span></label>
+  <label class="step"><input type="checkbox" data-k="need-cli" /><span>Install <a href="https://learn.microsoft.com/cli/azure/install-azure-cli">Azure CLI</a>, then <code>az login</code> and <code>az account set --subscription "&lt;name-or-id&gt;"</code>.</span></label>
+  <label class="step"><input type="checkbox" data-k="need-docker" /><span>Install Docker Desktop and confirm <code>docker version</code> works.</span></label>
+  <label class="step"><input type="checkbox" data-k="need-py" /><span>Python 3.11+ already used by this repo. From the Pricing folder: <code>pip install -e ".[dev]"</code> then <code>pytest</code> (should be 33 passed).</span></label>
+  <p>Region is Canada Central so customer features, decisions, and rewards stay in Canada under PIPEDA. Canada East is for disaster recovery later. Do not put personal data in East US because it looks cheaper.</p>
+</section>
+
+<section class="card" id="map">
+  <p class="phase">Architecture</p>
+  <h2>1. What this project becomes on Azure</h2>
+  <p>Every local piece has one production home. Keep this picture in mind while you build; it is the target, not a catalog of extras. A shopper on web, app, email, a till, or a partner never talks to Python. The call arrives at Front Door, which terminates TLS, picks a Canada POP, and should absorb bots so the bandit does not waste exploration on scrapers. API Management sits behind that door, rate-limits, authenticates, and exposes <code>POST /v1/price</code> while keeping explain and control on an internal product.</p>
+  <div class="diagram">Channels (Web / App / Email / POS / Partners)
+        │
+        ▼
+Azure Front Door + WAF          auth, bot, geo, TLS, Canada POP
+        │
+        ▼
+API Management                  rate limit, product keys, /v1/price vs /explain
+        │
+        ▼
+Container Apps  PDS             stages 0–10  (p99 &lt; 100ms)
+   ├─ App Configuration         kill switch, freeze, versions, ladders
+   ├─ Key Vault                 secrets, Event Hub conn, Redis key
+   ├─ Redis                     online features, sticky price TTL
+   ├─ Cosmos DB                 catalog, identity graph, offer ledger
+   └─ Event Hubs (Kafka)        (x, a, p) decisions + outcomes
+        │
+        ▼
+ADLS Gen2 (Delta)               lakehouse
+        │
+        ▼
+Databricks / Fabric Spark       join, PIT backfill, OPE
+        │
+        ▼
+Azure ML registry + gate        promote only if DR/OPE beats current
+        │
+        ▼
+Container Apps revision split   shadow → 1% → 5% → 25% → 100%</div>
+  <p>uvicorn on port 8080 becomes a Container App, and only later AKS if you outgrow revisions at something like ten thousand decisions a second. <code>gateway.py</code> becomes Front Door and APIM so bots and unauthenticated callers never reach Python. The in-memory feature store becomes Redis because a feature lookup has to finish in a millisecond or two. <code>catalog.yaml</code> and the identity dict become Cosmos DB so SKU economics, the customer graph, and the offer ledger survive a replica restart. <code>decisions.jsonl</code> becomes Event Hubs with Kafka and a schema registry so every decision is logged with a propensity. Local lake files become ADLS Gen2 Delta tables for point-in-time training and OPE. The numpy jobs under <code>offline/</code> become Azure ML, with Spark in Fabric or Databricks when the joins no longer fit one node. <code>models.json</code> becomes the Azure ML registry, with the same approval gate. <code>control_plane.yaml</code> becomes App Configuration so a kill switch does not wait for a new image. Sticky dicts and coupon lists become Redis TTLs plus a Cosmos ledger so an issued price is still honored. In-process metrics become App Insights. The lab UI stays the same app, on internal ingress only, because <code>/v1/price:explain</code> must not face the internet.</p>
+</section>
+
+<section class="card" id="names">
+  <p class="phase">Phase 0</p>
+  <h2>2. Set names (do this once)</h2>
+  <p>Open PowerShell in the Pricing folder. Paste this block and keep the window open for every later step. Canada Central is the region. ACR, Key Vault, and storage names are globally unique, which is why a random suffix is appended; write the printed values down before you close the window.</p>
+  <pre><button class="copy">Copy</button><code>$Location = "canadacentral"
+$EnvName  = "dev"                          # later: test, prod
+$Prefix   = "pds"
+$Suffix   = Get-Random -Minimum 1000 -Maximum 9999
+$RG       = "rg-$Prefix-$Location-$EnvName"
+$ACR      = ($Prefix + "acr" + $EnvName + $Suffix).ToLower()   # globally unique
+$ACA_ENV  = "cae-$Prefix-$EnvName"
+$APP      = "ca-$Prefix-api"
+$REDIS    = "redis-$Prefix-$EnvName-$Suffix"
+$COSMOS   = "cosmos-$Prefix-$EnvName-$Suffix"
+$EHNS     = "evh-$Prefix-$EnvName-$Suffix"
+$STG      = ("st" + $Prefix + $EnvName + $Suffix).ToLower()    # storage: letters+numbers
+$KV       = "kv-$Prefix-$EnvName-$Suffix"
+$APPCS    = "appcs-$Prefix-$EnvName-$Suffix"
+$LA       = "log-$Prefix-$EnvName"
+$AI       = "appi-$Prefix-$EnvName"
+$MLW      = "mlw-$Prefix-$EnvName-$Suffix"
+Write-Host "RG=$RG ACR=$ACR STG=$STG KV=$KV"</code></pre>
+  <label class="step"><input type="checkbox" data-k="p0-vars" /><span>Variables printed. Save them in a notepad — ACR, Key Vault, and storage names cannot be reused if you delete them carelessly.</span></label>
+  <p>In development, keep the Container App at half a vCPU and a gigabyte of memory with one to three replicas. Redis can be Basic C0, Cosmos serverless, Event Hubs Standard with one throughput unit and Kafka enabled. Skip API Management and Front Door and use the Container Apps hostname. Production is a different envelope: a full vCPU and two gigabytes, three to thirty replicas in a zone-redundant environment; Redis Premium with TLS and a private endpoint; Cosmos autoscale with failover to Canada East; Event Hubs Premium with capture into ADLS; APIM Standard v2 or Premium on a VNet; Front Door Premium with the bot manager.</p>
+</section>
+
+<section class="card" id="login">
+  <p class="phase">Phase 1</p>
+  <h2>3. Login, resource group, register providers</h2>
+  <p>Sign in so Azure knows which directory and subscription to bill. Create the resource group in Canada Central; everything later in this runbook lands inside it, and deleting the group is how you stop paying. Register the resource providers once per subscription. Registration is free and only means “this subscription is allowed to create these kinds of things.”</p>
+  <pre><button class="copy">Copy</button><code>az login
+az account show --query "{name:name, id:id, user:user.name}" -o table
+az group create --name $RG --location $Location
+
+az provider register --namespace Microsoft.App
+az provider register --namespace Microsoft.ContainerRegistry
+az provider register --namespace Microsoft.Cache
+az provider register --namespace Microsoft.DocumentDB
+az provider register --namespace Microsoft.EventHub
+az provider register --namespace Microsoft.Storage
+az provider register --namespace Microsoft.KeyVault
+az provider register --namespace Microsoft.AppConfiguration
+az provider register --namespace Microsoft.Insights
+az provider register --namespace Microsoft.MachineLearningServices
+az provider register --namespace Microsoft.OperationalInsights</code></pre>
+  <label class="step"><input type="checkbox" data-k="p1-rg" /><span>Resource group exists: <code>az group show -n $RG --query location -o tsv</code> returns <code>canadacentral</code>.</span></label>
+</section>
+
+<section class="card" id="docker">
+  <p class="phase">Phase 2</p>
+  <h2>4. Containerize the lab (prove it locally)</h2>
+  <p>Azure will run a Docker image of this FastAPI app, so prove that image on the laptop first. A <code>Dockerfile</code> already sits in the repo root. Build it from the Pricing folder, run it on port 8080, and in a second terminal hit health and a price call. When health returns ok and the POST returns a price plus <code>decision_id</code>, stop the container with Ctrl+C. That image is the artifact you will push.</p>
+  <pre><button class="copy">Copy</button><code>docker build -t pds-api:local .
+docker run --rm -p 8080:8080 pds-api:local</code></pre>
+  <p>While that is running, in a second terminal:</p>
+  <pre><button class="copy">Copy</button><code>curl http://127.0.0.1:8080/health
+curl -s -X POST http://127.0.0.1:8080/v1/price -H "Content-Type: application/json" -d "{\"customer_id\":\"c_maya\",\"sku\":\"SKU-1234\",\"cart_value\":50,\"mode\":\"exploit\"}"</code></pre>
+  <label class="step"><input type="checkbox" data-k="p2-docker" /><span>Health returns <code>status: ok</code> and POST returns a price + <code>decision_id</code>.</span></label>
+</section>
+
+<section class="card" id="aca">
+  <p class="phase">Phase 3</p>
+  <h2>5. Put the same lab on Azure (ACR + Container Apps)</h2>
+  <p>There are two ways to get the same lab onto Azure. The script in the repo does it in one pass. The first time, do it by hand so you see the registry, the Log Analytics workspace, the environment, and the app come into existence. Development ingress can be external so you can open a browser. The public URL is fine for development; before production, set ingress to limited or a VNet, and never publish explain, control, or admin reload on the internet.</p>
+  <p>The one-pass script is <code>infra/azure-up.ps1</code>:</p>
+  <pre><button class="copy">Copy</button><code>pwsh -File infra/azure-up.ps1</code></pre>
+  <p>The commands below are the same work, written out so you can see each resource appear.</p>
+  <pre><button class="copy">Copy</button><code>az acr create -g $RG -n $ACR --sku Basic --admin-enabled true
+az acr login -n $ACR
+docker build -t "$ACR.azurecr.io/pds-api:v0.1.0" .
+docker push "$ACR.azurecr.io/pds-api:v0.1.0"
+
+az monitor log-analytics workspace create -g $RG -n $LA -l $Location
+$WS_ID  = az monitor log-analytics workspace show -g $RG -n $LA --query customerId -o tsv
+$WS_KEY = az monitor log-analytics workspace get-shared-keys -g $RG -n $LA --query primarySharedKey -o tsv
+
+az containerapp env create -n $ACA_ENV -g $RG -l $Location --logs-workspace-id $WS_ID --logs-workspace-key $WS_KEY
+
+az containerapp create `
+  --name $APP -g $RG --environment $ACA_ENV `
+  --image "$ACR.azurecr.io/pds-api:v0.1.0" `
+  --registry-server "$ACR.azurecr.io" `
+  --target-port 8080 --ingress external `
+  --cpu 0.5 --memory 1.0Gi `
+  --min-replicas 1 --max-replicas 3 `
+  --env-vars PDS_ENV=azure-dev PDS_HOST=0.0.0.0 PDS_PORT=8080
+
+$FQDN = az containerapp show -g $RG -n $APP --query properties.configuration.ingress.fqdn -o tsv
+Write-Host "https://$FQDN/"
+curl "https://$FQDN/health"</code></pre>
+  <label class="step"><input type="checkbox" data-k="p3-aca" /><span>Open <code>https://$FQDN/</code> — you should see the same Architecture / Online / Offline lab UI.</span></label>
+</section>
+
+<section class="card" id="secrets">
+  <p class="phase">Phase 4</p>
+  <h2>6. Key Vault + App Configuration (control plane)</h2>
+  <p>Kill switch, freeze, and version pins must change <b>without a new image</b>. That is App Configuration. Secrets never go in env vars in source — they go in Key Vault.</p>
+  <pre><button class="copy">Copy</button><code>az keyvault create -n $KV -g $RG -l $Location --enable-rbac-authorization true
+az appconfig create -n $APPCS -g $RG -l $Location --sku Free
+
+# Feature flags = control plane
+az appconfig feature set -n $APPCS --feature pds.kill_switch --description "Serve list price only"
+az appconfig feature set -n $APPCS --feature pds.merchandiser_freeze
+az appconfig kv set -n $APPCS --key pds.policy_id --value ts_v7
+az appconfig kv set -n $APPCS --key pds.causal_model_id --value s_learner_v1
+az appconfig kv set -n $APPCS --key pds.guardrail_version --value gr_v12
+az appconfig kv set -n $APPCS --key pds.daily_discount_budget --value 10000
+
+$APPCS_EP = az appconfig show -n $APPCS -g $RG --query endpoint -o tsv
+az containerapp update -g $RG -n $APP --set-env-vars "PDS_APPCONFIG_ENDPOINT=$APPCS_EP"</code></pre>
+  <h3>Wire it in Python (do this in the repo)</h3>
+  <p>Replace the in-memory flags in <code>services/control_plane.py</code> with App Configuration feature flags:</p>
+  <pre><button class="copy">Copy</button><code># pip install azure-appconfiguration azure-identity azure-keyvault-secrets
+from azure.identity import DefaultAzureCredential
+from azure.appconfiguration.provider import load, WatchKey
+from azure.appconfiguration.provider import AzureAppConfigurationKeyVaultOptions
+
+credential = DefaultAzureCredential()
+config = load(endpoint=os.environ["PDS_APPCONFIG_ENDPOINT"], credential=credential,
+              feature_flag_enabled=True, refresh_on=[WatchKey("pds.kill_switch")])
+
+kill = bool(config["feature_management"]["pds.kill_switch"])  # shape depends on provider
+# Map onto ControlPlane.kill_switch / merchandiser_freeze
+# Refresh every 5s on a background task — do not block the hot path.</code></pre>
+  <label class="step"><input type="checkbox" data-k="p4-kv" /><span>Flip <code>pds.kill_switch</code> in Azure Portal → App Configuration → Feature manager. Next <code>/v1/price</code> must return list price (Maya / SKU-1234 → 50.00) without restarting the container.</span></label>
+  <p>Give the Container App a system-assigned identity, then grant that identity App Configuration Data Reader on the store and Key Vault Secrets User on the vault. People still use Entra to open the portal; the app never holds a long-lived client secret.</p>
+  <pre><button class="copy">Copy</button><code>az containerapp identity assign -g $RG -n $APP --system-assigned
+$APP_ID = az containerapp show -g $RG -n $APP --query identity.principalId -o tsv
+$APPCS_ID = az appconfig show -n $APPCS -g $RG --query id -o tsv
+$KV_ID = az keyvault show -n $KV -g $RG --query id -o tsv
+az role assignment create --assignee $APP_ID --role "App Configuration Data Reader" --scope $APPCS_ID
+az role assignment create --assignee $APP_ID --role "Key Vault Secrets User" --scope $KV_ID</code></pre>
+</section>
+
+<section class="card" id="redis">
+  <p class="phase">Phase 5</p>
+  <h2>7. Redis — online features + sticky prices</h2>
+  <p>This replaces <code>FeatureStore</code> and <code>StickyPriceStore</code>. A feature GET should finish in well under two milliseconds. Create the cache with TLS only, then put the connection string in Key Vault rather than on the Container App as a raw environment secret.</p>
+  <pre><button class="copy">Copy</button><code>az redis create -g $RG -n $REDIS -l $Location --sku Basic --vm-size C0 --enable-non-ssl-port false
+$REDIS_HOST = az redis show -g $RG -n $REDIS --query hostName -o tsv
+$REDIS_KEY  = az redis list-keys -g $RG -n $REDIS --query primaryKey -o tsv
+az keyvault secret set --vault-name $KV --name redis-connection `
+  --value "rediss://:$REDIS_KEY@$REDIS_HOST:6380/0"</code></pre>
+  <p>Keys are short-lived and named so you can find them in a hurry. Feature vectors live at <code>feat:{customer_id}</code> with the TTL from <code>features.yaml</code>, often five minutes. A sticky offer is <code>sticky:{customer_id}:{sku}</code> for about thirty minutes. How often this shopper has already been discounted is <code>freq:{customer_id}:disc:30d</code>. The daily discount budget is an incrementing <code>budget:discount:yyyy-mm-dd</code> that expires after two days. In <code>services/feature_store.py</code> and <code>services/control_plane.py</code>, swap the in-memory dict for <code>redis.Redis.from_url(os.environ["REDIS_URL"])</code> and keep the same methods (<code>get</code>, <code>lookup</code>, <code>remember</code>) so <code>orchestrator.py</code> does not change.</p>
+  <label class="step"><input type="checkbox" data-k="p5-redis" /><span>Two <code>POST /v1/price</code> with <code>"sticky": true</code> for Maya + SKU-1234 return the same price. Redis Browser / <code>redis-cli GET sticky:c_maya:SKU-1234</code> shows the key.</span></label>
+</section>
+
+<section class="card" id="cosmos">
+  <p class="phase">Phase 6</p>
+  <h2>8. Cosmos DB — catalog, identity, offer ledger, CS lookup</h2>
+  <p>Cosmos is the cabinet of record that replaces <code>catalog.yaml</code>, the identity dict, the coupon list, and CS lookup. Create a serverless account in Canada Central with session consistency, then four containers in a database named <code>pricing</code>: catalog partitioned on <code>sku</code>, customers and decisions on <code>customer_id</code>, offers on <code>code</code>. Put the URI and key in Key Vault. A coupon written here is a promise — a later policy change must not void a code already shown.</p>
+  <pre><button class="copy">Copy</button><code>az cosmosdb create -g $RG -n $COSMOS --locations regionName=$Location failoverPriority=0 isZoneRedundant=false --default-consistency-level Session --capabilities EnableServerless
+az cosmosdb sql database create -g $RG -a $COSMOS -n pricing
+az cosmosdb sql container create -g $RG -a $COSMOS -d pricing -n catalog --partition-key-path "/sku"
+az cosmosdb sql container create -g $RG -a $COSMOS -d pricing -n customers --partition-key-path "/customer_id"
+az cosmosdb sql container create -g $RG -a $COSMOS -d pricing -n offers --partition-key-path "/code"
+az cosmosdb sql container create -g $RG -a $COSMOS -d pricing -n decisions --partition-key-path "/customer_id"
+
+$COSMOS_URI = az cosmosdb show -g $RG -n $COSMOS --query documentEndpoint -o tsv
+$COSMOS_KEY = az cosmosdb keys list -g $RG -n $COSMOS --query primaryMasterKey -o tsv
+az keyvault secret set --vault-name $KV --name cosmos-uri --value $COSMOS_URI
+az keyvault secret set --vault-name $KV --name cosmos-key --value $COSMOS_KEY</code></pre>
+  <h3>Load the demo catalog once</h3>
+  <p>Write a one-off script <code>scripts/load_cosmos.py</code> that reads <code>configs/catalog.yaml</code> and upserts each SKU and customer. Run it from your laptop with the Key Vault secrets after <code>az login</code>. A catalog document carries list price, cost, MAP, stock, and whether the SKU is discountable. A customer document carries segment, consent, features, and geo band. An offer document is the redeemable code plus expiry and the <code>decision_id</code> that created it. A decision document is what CS looks up: price, propensity, timestamp, and reason codes. Replace <code>CatalogService.get</code>, <code>IdentityService.resolve</code>, <code>CouponService.issue/lookup/redeem</code>, and <code>lookup_decision</code> with Cosmos reads. Unknown SKU is still 404. Guest still works with no <code>customer_id</code>.</p>
+  <label class="step"><input type="checkbox" data-k="p6-cosmos" /><span>After loading YAML, <code>GET /v1/catalog</code> on the Azure FQDN returns Maya, James, Priya, Alex, Noah + 5 SKUs. Issue a coupon, <code>GET /v1/offers/{code}</code>, redeem once, second redeem is 400.</span></label>
+</section>
+
+<section class="card" id="events">
+  <p class="phase">Phase 7</p>
+  <h2>9. Event Hubs + ADLS — the experience tuple must never block checkout</h2>
+  <p>Today <code>DecisionLogger</code> writes JSONL. Production: emit to Event Hubs using the Kafka protocol (so the existing “Kafka topic” mental model stays). Capture lands in the lake automatically.</p>
+  <pre><button class="copy">Copy</button><code>az eventhubs namespace create -g $RG -n $EHNS -l $Location --sku Standard --enable-kafka true --capacity 1
+az eventhubs eventhub create -g $RG --namespace-name $EHNS -n pricing.decisions.v1 --message-retention 7 --partition-count 8
+az eventhubs eventhub create -g $RG --namespace-name $EHNS -n pricing.outcomes.v1 --message-retention 7 --partition-count 4
+
+az storage account create -g $RG -n $STG -l $Location --sku Standard_LRS --kind StorageV2 --enable-hierarchical-namespace true
+az storage fs create -n lake --account-name $STG
+az storage fs directory create -n bronze/decisions --file-system lake --account-name $STG
+az storage fs directory create -n bronze/outcomes --file-system lake --account-name $STG
+az storage fs directory create -n silver/training --file-system lake --account-name $STG
+az storage fs directory create -n gold/ope --file-system lake --account-name $STG
+
+# Capture decisions → ADLS (no extra consumer required for bronze)
+$STG_ID = az storage account show -g $RG -n $STG --query id -o tsv
+az eventhubs eventhub update -g $RG --namespace-name $EHNS -n pricing.decisions.v1 `
+  --enable-capture true --capture-interval 300 --capture-size-limit 314572800 `
+  --destination-name EventHubArchive.AzureBlockBlob `
+  --storage-account-resource-id $STG_ID `
+  --blob-container lake --archive-name-format "bronze/decisions/{Namespace}/{EventHub}/{PartitionId}/{Year}/{Month}/{Day}/{Hour}/{Minute}/{Second}"</code></pre>
+  <p>Store the Event Hubs connection string in Key Vault as <code>eventhub-send</code>. In <code>services/logger.py</code> turn Kafka on and produce to <code>$EHNS.servicebus.windows.net:9093</code> with SASL_SSL. The payload is the same experience dict <code>build_experience()</code> already builds, and it must carry <code>decision_id</code>, <code>context_hash</code>, chosen arm, propensity, policy and causal model ids, candidate-set version, variant, sticky replay, and whether training should ignore the row. If Event Hubs is down, buffer locally (you already have <code>log_buffer</code>), mark the decision degraded, and disable exploration until the bus is healthy — otherwise off-policy evaluation is fiction.</p>
+  <label class="step"><input type="checkbox" data-k="p7-eh" /><span>POST a price, then check Event Hubs metrics (incoming messages = 1) and, within 5 minutes, a capture blob under <code>bronze/decisions/</code>.</span></label>
+  <p>Outcomes use the existing API, but persist to the second hub:</p>
+  <pre><button class="copy">Copy</button><code>POST /v1/outcomes
+{
+  "decision_id": "&lt;from price response&gt;",
+  "event_type": "purchase",
+  "revenue": 44.99,
+  "margin": 16.99,
+  "units": 1
+}</code></pre>
+</section>
+
+<section class="card" id="ml">
+  <p class="phase">Phase 8</p>
+  <h2>10. Offline learning on Azure ML + Spark</h2>
+  <p>Do not train on the Container App. Nightly jobs map one-for-one onto <code>offline/pipeline.py</code>. Ingest turns Event Hub capture into Delta bronze on ADLS. Join matches decisions to outcomes on <code>decision_id</code> with a seven-day reward window net of refunds, and writes silver training rows. Backfill reconstructs features as of the decision timestamp, not “current.” Causal training is an Azure ML job (the numpy S-learner in this repo first, EconML later). The bandit job writes a policy artifact. OPE computes IPS, SNIPS, DR, a bootstrap interval, and effective sample size into <code>gold/ope</code>. The registry step registers a model only if the DR estimate of the new policy beats the current one by the threshold, ESS is healthy, the fairness gap is under five percent, and max PSI is under 0.2. The gate then opens a new Container Apps revision at zero traffic — shadow — before any shopper sees it.</p>
+  <pre><button class="copy">Copy</button><code>az extension add -n ml
+az ml workspace create -g $RG -n $MLW -l $Location --storage-account $STG
+
+# First training job: reuse the Python you already have
+# Create a job YAML (save as infra/train-causal.yml) then:
+# az ml job create -g $RG -w $MLW -f infra/train-causal.yml</code></pre>
+  <p>A minimal <code>infra/train-causal.yml</code> reuses the pipeline you already run locally:</p>
+  <pre><button class="copy">Copy</button><code>$schema: https://azuremlschemas.azureedge.net/latest/commandJob.schema.json
+command: python -c "from pricing_decision.offline.pipeline import OfflinePipeline; from pricing_decision.orchestrator import PricingOrchestrator; OfflinePipeline(PricingOrchestrator()).run('ol_ope', {'seed_n': 200})"
+experiment_name: pds-offline
+environment:
+  image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu20.04
+  conda_file: ../conda.train.yml
+compute: azureml:serverless
+outputs:
+  model:
+    type: uri_folder</code></pre>
+  <p>When a candidate clears the gate, copy a revision at zero percent, then move a percent, then five, twenty-five, and a hundred. If an App Insights alert fires, put the new revision back to zero. That is the same shadow-then-canary story as the lab, expressed as Container Apps traffic weights.</p>
+  <pre><button class="copy">Copy</button><code># New revision, 0% traffic = shadow (logs, does not serve)
+az containerapp revision copy -g $RG -n $APP --from-revision &lt;current&gt; --image "$ACR.azurecr.io/pds-api:v0.2.0"
+az containerapp ingress traffic set -g $RG -n $APP --revision-weight &lt;old&gt;=100 &lt;new&gt;=0
+
+# Canary
+az containerapp ingress traffic set -g $RG -n $APP --revision-weight &lt;old&gt;=99 &lt;new&gt;=1
+# then 5, 25, 100. Auto-rollback: if App Insights alert fires, set new=0.</code></pre>
+  <label class="step"><input type="checkbox" data-k="p8-ml" /><span>One Azure ML job completes, a model appears in the registry tagged <code>policy_id</code> + <code>causal_model_id</code>, and OPE JSON is in <code>gold/ope/</code>.</span></label>
+</section>
+
+<section class="card" id="edge">
+  <p class="phase">Phase 9</p>
+  <h2>11. Front Door + APIM (public edge)</h2>
+  <p>Do this when a real channel will call pricing. Until then, the Container Apps hostname plus an IP restriction is enough. When you do put a door in front, split products the way <code>gateway.py</code> already thinks. Channels call <code>POST /v1/price</code> with a JWT or subscription key, about fifty requests per second per customer, and they never receive an explain body. CRM and email call <code>POST /v1/price:batch</code> with a managed identity and a larger payload limit. Checkout posts outcomes with a managed identity. CS tools look up <code>GET /v1/decisions/{id}</code> with Entra and a CS group. Explain, control, and admin are not on Front Door at all; they live on an internal APIM product.</p>
+  <pre><button class="copy">Copy</button><code># APIM is billed even when idle. Use Developer SKU in dev, Standard v2 in prod.
+az apim create -g $RG -n "apim-$Prefix-$EnvName-$Suffix" -l $Location --sku-name Developer --publisher-email you@company.com --publisher-name "Pricing"
+
+# Front Door Premium: WAF bot manager + Canada anycast
+# Portal is easier the first time: Create profile → origin group = APIM gateway hostname
+# WAF: Bot manager + rate limit + geo allow CA/US if that is your market</code></pre>
+  <label class="step"><input type="checkbox" data-k="p9-edge" /><span>Public <code>POST /v1/price</code> works with a subscription key. <code>/v1/price:explain</code> from the internet returns 404/401.</span></label>
+</section>
+
+<section class="card" id="monitor">
+  <p class="phase">Phase 10</p>
+  <h2>12. Monitor, fairness, rollback</h2>
+  <p>A bandit you cannot measure is just random prices. Create Application Insights against the same Log Analytics workspace you attached to Container Apps, then pass the connection string into the app. Instrument FastAPI with OpenTelemetry toward Azure Monitor. You can keep the in-process Prometheus counters for the lab, but App Insights is what production paging will use.</p>
+  <pre><button class="copy">Copy</button><code>az monitor app-insights component create -g $RG -l $Location -a $AI --workspace $LA
+$AI_CONN = az monitor app-insights component show -g $RG -a $AI --query connectionString -o tsv
+az containerapp update -g $RG -n $APP --set-env-vars "APPLICATIONINSIGHTS_CONNECTION_STRING=$AI_CONN"</code></pre>
+  <p>Before you take the bandit live, those alerts have to exist with a named owner. If p99 of <code>/v1/price</code> sits above 100 ms for five minutes, page on-call and scale replicas. If availability drops under 99.9 percent or 5xx crosses one percent, put all traffic on the last known-good revision. If Event Hub ingress lags request count by more than a tenth of a percent, force exploit so you stop exploring into an incomplete log. If rolling hourly revenue falls far below predicted value, freeze discounts and investigate. If propensity PSI crosses 0.2, stop exploring and retrain. If a protected-group price gap exceeds five percent, turn the kill switch on. If the kill switch flag cannot be read, fail closed to list price.</p>
+  <pre><button class="copy">Copy</button><code># Example: 5xx → rollback traffic (fill IDs after first revision)
+az monitor metrics alert create -g $RG -n pds-5xx `
+  --scopes $(az containerapp show -g $RG -n $APP --query id -o tsv) `
+  --condition "avg Requests > 0" `
+  --description "Replace condition with Http5xx when the metric namespace is visible" `
+  --action $(az monitor action-group create -g $RG -n ag-pds-oncall --short-name pds --action email you you@company.com --query id -o tsv)</code></pre>
+  <label class="step"><input type="checkbox" data-k="p10-mon" /><span>App Insights live metrics show POST /v1/price. You have an action group email. You documented the revision rollback command in your on-call notes.</span></label>
+</section>
+
+<section class="card" id="batch">
+  <p class="phase">Phase 11</p>
+  <h2>13. Batch campaigns (email / ads)</h2>
+  <p>Do not loop HTTP from Logic Apps across thousands of customers with no backpressure. Use a Container Apps Job that calls the same <code>decide_batch()</code> path, logs propensities, and writes offer codes to Cosmos. Better still, a small worker that reads a customer list from ADLS, posts to <code>/v1/price:batch</code> in chunks of a hundred, and writes results to <code>gold/campaigns/</code>. The frequency cap still lives in Redis. Never email a price that is not already in the offer ledger.</p>
+  <pre><button class="copy">Copy</button><code>az containerapp job create -g $RG -n job-pds-campaign --environment $ACA_ENV `
+  --image "$ACR.azurecr.io/pds-api:v0.1.0" `
+  --cpu 1 --memory 2Gi `
+  --command "python" --args "-m" "pricing_decision.cli" "decide" "-f" "/input/campaign.json" `
+  --trigger-type Manual</code></pre>
+  <label class="step"><input type="checkbox" data-k="p11-batch" /><span>A 50-row CSV of customer_id,sku produces 50 logged decisions with propensity and 50 Cosmos offer rows.</span></label>
+</section>
+
+<section class="card" id="code">
+  <p class="phase">Code you must change</p>
+  <h2>14. Adapter swap list (keep stage files)</h2>
+  <p>Do not rewrite <code>stages/stage4_causal.py</code> or the bandit to “be Azure.” Swap adapters only. <code>config.py</code> grows settings for App Configuration, Redis, Cosmos, Kafka, and Key Vault. <code>services/feature_store.py</code> becomes Redis GET and SET of JSON. <code>services/control_plane.py</code> reads App Configuration flags, increments the Redis discount budget, and stores sticky prices. Catalog, identity, coupons, and decision lookup read Cosmos containers <code>catalog</code>, <code>customers</code>, <code>offers</code>, and <code>decisions</code>. <code>services/logger.py</code> produces to Event Hubs over Kafka and falls back to the local buffer. Outcomes go to <code>pricing.outcomes.v1</code>. The lake uses ADLS Delta. The registry uses the Azure ML SDK. Rollout talks to the Container Apps revision traffic API. <code>api/app.py</code> adds App Insights middleware and splits public routers from admin. Unit tests should still pass against in-memory fakes. Mark Azure integration tests so they skip unless <code>PDS_ENV</code> starts with <code>azure</code>.</p>
+  <label class="step"><input type="checkbox" data-k="p14-adapters" /><span>Unit tests still pass with in-memory fakes. Add integration tests marked <code>@pytest.mark.azure</code> that skip unless <code>PDS_ENV</code> starts with <code>azure</code>.</span></label>
+</section>
+
+<section class="card" id="privacy">
+  <p class="phase">Phase 12</p>
+  <h2>15. PIPEDA / Law 25 / fairness (Canada)</h2>
+  <p>Every store that holds shopper or decision data is created in Canada Central. Confirm it with <code>az resource list -g $RG --query "[].{n:name,l:location}"</code> before you call this production. Consent already exists in preprocess: if the flag is off, the service sends a generic feature vector. Protected attributes such as exact age, gender, or ethnicity may live in a locked Cosmos container for audit and must never enter the feature vector; Azure Policy can deny unexpected columns in the training Delta table. In production, Key Vault and the data plane sit behind private endpoints, and public networks on Cosmos, Redis, and Storage are off. Retention in <code>control_plane.yaml</code> is 400 days; set Event Hub and ADLS lifecycle to match, then purge. Microsoft Purview scans ADLS, classifies PII, and is how you show that bronze decisions are not a free-for-all.</p>
+  <label class="step"><input type="checkbox" data-k="p12-privacy" /><span>Legal signed off: purpose of personalization, retention, kill switch, and “CS can explain a price by decision_id without model guts.”</span></label>
+</section>
+
+<section class="card" id="verify">
+  <p class="phase">Go-live checks</p>
+  <h2>16. Verification script (run against the Azure FQDN)</h2>
+  <pre><button class="copy">Copy</button><code>$Base = "https://$FQDN"   # later: https://pricing.yourdomain.com
+# 1 health
+curl "$Base/health"
+# 2 PDP exploit
+curl -s -X POST "$Base/v1/price" -H "Content-Type: application/json" `
+  -d '{"customer_id":"c_maya","sku":"SKU-1234","cart_value":50,"mode":"exploit"}'
+# 3 holdout = list price
+curl -s -X POST "$Base/v1/price:explain" -H "Content-Type: application/json" `
+  -d '{"customer_id":"c_maya","sku":"SKU-1234","cart_value":50,"experiment_hint":"holdout"}'
+# 4 kill switch
+az appconfig feature enable -n $APPCS --feature pds.kill_switch
+Start-Sleep 8
+curl -s -X POST "$Base/v1/price" -H "Content-Type: application/json" `
+  -d '{"customer_id":"c_maya","sku":"SKU-1234","cart_value":50}'
+# expect 50.00
+az appconfig feature disable -n $APPCS --feature pds.kill_switch
+# 5 outcome join
+# (use decision_id from step 2)
+# 6 unknown SKU → 404
+# 7 guest (no customer_id) → segment guest, no deep personalization
+# 8 sticky two calls same price
+# 9 budget: set spent = cap → list price
+# 10 explain endpoint blocked from Front Door</code></pre>
+  <label class="step"><input type="checkbox" data-k="p16-verify" /><span>All 10 checks recorded in a wiki/PR. Holdout still returns only <code>disc_0</code>. Kill switch restored to off.</span></label>
+</section>
+
+<section class="card" id="cost">
+  <p class="phase">Money</p>
+  <h2>17. Cost sketch (Canada Central, 2026 ballpark)</h2>
+  <p>These are order-of-magnitude numbers so you are not surprised on the invoice, not a quote from Microsoft. A development month of Container Apps, ACR, and Log Analytics is tens of dollars, Redis Basic another twenty, Cosmos serverless twenty to eighty, Event Hubs and ADLS thirty to sixty, and Azure ML jobs fifty to a hundred fifty if you remember to stop compute. Skip Front Door and APIM in development and the whole slice often lands between about 150 and 400 dollars a month. Production at serious traffic is a different conversation: hundreds for the app and logs, Redis Premium in the hundreds, Cosmos autoscale that can pass a thousand, Event Hubs and the lake a few hundred, ML and Spark from hundreds to a couple of thousand on a busy nightly, and APIM plus Front Door another thousand or two. At around ten thousand requests a second, plan on a few thousand to the high thousands a month, and put a named owner on the bill.</p>
+  <p>Put a budget alert on the resource group on day one. A budget emails you; it does not always shut resources off.</p>
+  <pre><button class="copy">Copy</button><code>az consumption budget create --budget-name pds-dev-cap --amount 400 --time-grain Monthly --category Cost --resource-group $RG --start-date (Get-Date -Format yyyy-MM-01)</code></pre>
+  <label class="step"><input type="checkbox" data-k="p17-budget" /><span>Budget + email alert created. You know who pays the bill.</span></label>
+</section>
+
+<section class="card" id="plan">
+  <p class="phase">Calendar</p>
+  <h2>18. Eight-week implementation plan</h2>
+  <p>Week one is the lab on Container Apps and a GitHub Action that builds the image to ACR on every main push. Week two is Key Vault, the App Configuration kill switch, App Insights, and the split between public and admin routes. Week three is Redis: features, sticky prices, the frequency cap, and the discount budget. Week four is Cosmos: catalog, identity, the offer ledger, the YAML load, and CS lookup by <code>decision_id</code>.</p>
+  <p>Week five is Event Hubs, ADLS capture, outcomes on the second hub, and a completeness dashboard. Week six is Spark join and backfill, the Azure ML causal and OPE job, the registry, and a shadow revision. Week seven is a one-percent canary with holdout still at ten percent of traffic so you can estimate causal effects, plus a fairness workbook. Week eight is Front Door and APIM, private endpoints, Purview, disaster recovery toward Canada East, and a game day with CS, legal, and merchandising: kill switch, Event Hub outage, Redis outage — and the service must still return a price.</p>
+  <label class="step"><input type="checkbox" data-k="p18-plan" /><span>Dates on a calendar. Week 8 game-day scheduled with CS + legal + merchandising.</span></label>
+</section>
+
+<section class="card" id="cicd">
+  <p class="phase">CI/CD</p>
+  <h2>19. GitHub Actions (build → ACR → Container Apps)</h2>
+  <p>Create <code>.github/workflows/azure-deploy.yml</code> after you have an Azure AD app federated to GitHub (OIDC — no long-lived secrets):</p>
+  <pre><button class="copy">Copy</button><code>name: deploy-pds
+on:
+  push:
+    branches: [main]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: pytest
+        run: pip install -e ".[dev]" && pytest
+      - name: Build and push
+        run: |
+          az acr login -n ${{ secrets.ACR_NAME }}
+          docker build -t ${{ secrets.ACR_NAME }}.azurecr.io/pds-api:${{ github.sha }} .
+          docker push ${{ secrets.ACR_NAME }}.azurecr.io/pds-api:${{ github.sha }}
+      - name: Deploy revision
+        run: |
+          az containerapp update -g ${{ secrets.RG }} -n ca-pds-api \
+            --image ${{ secrets.ACR_NAME }}.azurecr.io/pds-api:${{ github.sha }}</code></pre>
+  <label class="step"><input type="checkbox" data-k="p19-cicd" /><span>A commit to main runs tests, pushes an image, and ACA shows a new revision. Failed pytest does not deploy.</span></label>
+</section>
+
+<section class="card" id="fallback">
+  <p class="phase">Failure</p>
+  <h2>20. Azure fallbacks (same ladder as the lab)</h2>
+  <p>Checkout still needs a price when a dependency is sick, so the ladder is the same one you already coded, just aimed at Azure names. If Redis is down, serve a segment-level default feature vector, mark the call degraded, and still return a price. If Cosmos is down, use the catalog warmed into replica memory at boot; if that is cold, fall back to a static list price. If the causal model times out, reuse last scores in Redis, or the rule-based ladder. If Event Hubs is down, write the local buffer (or a blob) and switch to exploit only so you do not explore into a log you cannot keep. If App Configuration cannot be read, fail closed when the last known flag was kill, otherwise use cached flags no older than a minute. If APIM or Front Door is unhealthy, origin probes fail over to a second Container Apps environment in Canada East in production.</p>
+  <label class="step"><input type="checkbox" data-k="p20-fallback" /><span>Chaos: stop Redis in dev. <code>/v1/price</code> still 200 with a price and <code>degraded</code> on the explain endpoint.</span></label>
+</section>
+
+<section class="card" id="done">
+  <p class="phase">Done when</p>
+  <h2>21. Definition of done</h2>
+  <p>You have implemented this project on Azure when a channel can <code>POST /v1/price</code> in Canada Central under a 100 ms p99 and receive only client fields, with no propensity on the wire; when every decision is in Event Hubs with propensity and version pins, and outcomes join within seven days; when kill switch, sticky TTL, and offer redeem work without a redeploy; when nightly OPE can block a bad model and a canary revision can roll back in one command; and when holdout traffic still exists so you can estimate causal effects, not only bandit regret.</p>
+  <label class="step"><input type="checkbox" data-k="done-1" /><span>A channel can <code>POST /v1/price</code> in Canada Central, p99 &lt; 100 ms, and get only client fields (no propensity).</span></label>
+  <label class="step"><input type="checkbox" data-k="done-2" /><span>Every decision is in Event Hubs with propensity + version pins; outcomes join within 7 days.</span></label>
+  <label class="step"><input type="checkbox" data-k="done-3" /><span>Kill switch, sticky TTL, and offer redeem work without a redeploy.</span></label>
+  <label class="step"><input type="checkbox" data-k="done-4" /><span>Nightly OPE can block a bad model; canary revisions can roll back in one command.</span></label>
+  <label class="step"><input type="checkbox" data-k="done-5" /><span>Holdout traffic still exists so you can estimate causal effects, not only bandit regret.</span></label>
+  <p>Start today with login, Docker, and Container Apps. Everything after that is swapping adapters. The pricing brain you already built stays the same. The files that support the first deploy are <code>Dockerfile</code>, <code>.dockerignore</code>, <code>infra/azure-up.ps1</code>, and this HTML runbook.</p>
+</section>
+
+</article>
+  </div>
+  <script>
+    if (new URLSearchParams(location.search).has("embed")) {
+      document.documentElement.classList.add("embed");
+    }
+    const toc = document.getElementById("toc");
+    document.querySelectorAll("article section.card").forEach((sec) => {
+      const h = sec.querySelector("h2");
+      if (!h) return;
+      const a = document.createElement("a");
+      a.href = "#" + sec.id;
+      a.textContent = h.textContent;
+      toc.appendChild(a);
+    });
+    document.querySelectorAll("pre").forEach((pre) => {
+      const btn = pre.querySelector("button.copy");
+      if (!btn) return;
+      btn.addEventListener("click", async () => {
+        const text = pre.querySelector("code").innerText;
+        await navigator.clipboard.writeText(text);
+        btn.textContent = "Copied";
+        setTimeout(() => { btn.textContent = "Copy"; }, 1200);
+      });
+    });
+    const boxes = [...document.querySelectorAll("input[data-k]")];
+    const doneEl = document.getElementById("doneCount");
+    const totalEl = document.getElementById("totalCount");
+    totalEl.textContent = String(boxes.length);
+    function refresh() {
+      let n = 0;
+      boxes.forEach((b) => {
+        const on = localStorage.getItem("pds-azure-" + b.dataset.k) === "1";
+        b.checked = on;
+        b.closest("label").classList.toggle("done", on);
+        if (on) n += 1;
+      });
+      doneEl.textContent = String(n);
+    }
+    boxes.forEach((b) => b.addEventListener("change", () => {
+      localStorage.setItem("pds-azure-" + b.dataset.k, b.checked ? "1" : "0");
+      refresh();
+    }));
+    refresh();
+  </script>
+</body>
+</html>

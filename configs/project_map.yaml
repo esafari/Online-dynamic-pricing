@@ -1,0 +1,45 @@
+- id: overview
+  title: How to read this
+  tagline: What lives where, and why
+- id: tree
+  title: Folder tree
+  tagline: The whole repo at a glance
+- id: root
+  title: Root files
+  tagline: pyproject, Docker, README
+- id: src
+  title: src / the package
+  tagline: Python that runs the service
+- id: api
+  title: FastAPI
+  tagline: api/app.py and the HTTP surface
+- id: web
+  title: Lab UI
+  tagline: web/index.html
+- id: stages
+  title: Online stages
+  tagline: stages 0–10
+- id: services
+  title: Services
+  tagline: Adapters you swap for Azure
+- id: core
+  title: Core
+  tagline: Models, ids, metrics
+- id: offline
+  title: Offline learning
+  tagline: Lake, OPE, registry
+- id: glue
+  title: Glue code
+  tagline: Orchestrator, CLI, config
+- id: configs
+  title: configs
+  tagline: YAML the brain reads
+- id: data
+  title: data
+  tagline: Logs, lake, registry
+- id: tests
+  title: tests
+  tagline: pytest suite
+- id: infra
+  title: infra, docs, scripts
+  tagline: Azure runbook and helpers
